@@ -1,5 +1,5 @@
 """
-Utility functions for creating plots
+Utility functions for creating sciplots
 """
 from typing import Sequence
 

@@ -6,13 +6,13 @@ from typing import Any
 import numpy as np
 from numpy import ndarray
 
-from plots import utils
-from plots.base import BasePlot
+from sciplots import utils
+from sciplots.base import BasePlot
 
 
 class BaseParamPairs(BasePlot):
     """
-    A class for creating parameter pair plots
+    A class for creating parameter pair sciplots
 
     Attributes
     ----------
@@ -125,7 +125,7 @@ class PlotParamPairs(BaseParamPairs):
         data : list[(N,L) ndarray] | (N,L) ndarray | (B,N,L) ndarray
             B sets of N data points for L parameters
         density : bool, default = False
-            If the data should be plotted as contours and density plots or histograms
+            If the data should be plotted as contours and density sciplots or histograms
         labels : list[str] | None, default = None
             Labels for each set of parameter comparisons
         fig_size : tuple[int, int], default = HI_RES
@@ -189,7 +189,7 @@ class PlotParamPairComparison(BaseParamPairs):
         y_data : list[(N,L) ndarray] | (N,L) ndarray | (B,N,L) ndarray
             B sets of N data points for L parameters to compare against x_data
         density : bool, default = False
-            If the data should be plotted as contours and density plots or histograms
+            If the data should be plotted as contours and density sciplots or histograms
         labels : list[str] | None, default = None
             Labels for each set of parameter comparisons
         fig_size : tuple[int, int], default = HI_RES
@@ -244,7 +244,7 @@ class PlotParamPairComparison(BaseParamPairs):
                     axis.set_xlim(col_range)
                     axis.set_ylim(row_range)
 
-                    # Set x & y labels and hide ticks for plots that aren't in the first column or
+                    # Set x & y labels and hide ticks for sciplots that aren't in the first column or
                     # bottom row
                     if j != 0:
                         axis.tick_params(labelleft=False, left=False)
@@ -283,7 +283,7 @@ class PlotParamPairComparison(BaseParamPairs):
                             left=False,
                         )
 
-                    # Plot scatter plots
+                    # Plot scatter sciplots
                     self.plots.append(axis.scatter(
                         col_data[:utils.SCATTER_NUM],
                         row_data[:utils.SCATTER_NUM],

@@ -8,9 +8,9 @@ import matplotlib as mpl
 from numpy import ndarray
 from matplotlib.axes import Axes
 
-from plots import utils
-from plots.base import BasePlot
-from plots.utils import subplot_grid
+from sciplots import utils
+from sciplots.base import BasePlot
+from sciplots.utils import subplot_grid
 
 
 class PlotDistributions(BasePlot):
@@ -59,7 +59,7 @@ class PlotDistributions(BasePlot):
         y_axes : bool, default = True
             If the y-axis should have ticks
         density : bool, default = False
-            If the distributions should be histograms or density plots
+            If the distributions should be histograms or density sciplots
         bins : int, default = 100
             Number of bins for histograms or density interpolation
         num_plots : int, default = 12

@@ -7,8 +7,8 @@ import numpy as np
 from numpy import ndarray
 from matplotlib.axes import Axes
 
-from plots import utils
-from plots.base import BasePlot
+from sciplots import utils
+from sciplots.base import BasePlot
 
 
 class _BasePlotClusters(BasePlot):

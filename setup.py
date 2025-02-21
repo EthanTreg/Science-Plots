@@ -3,16 +3,16 @@ Package setup
 """
 from setuptools import setup
 
-import plots
+import sciplots
 
 setup(
     name='sciplots',
-    version=plots.__version__,
-    description='Utility to create scientific plots',
+    version=sciplots.__version__,
+    description='Utility to create scientific sciplots',
     url='https://github.com/EthanTreg/Science-Plots',
     author='Ethan Tregidga',
     author_email='ethan.tregidga@epfl.ch',
     license='MIT',
-    packages=['plots'],
+    packages=['sciplots'],
     install_requires=['numpy', 'scipy', 'matplotlib'],
 )

@@ -1,5 +1,5 @@
 """
-Base plotting class for other plots to build upon
+Base plotting class for other sciplots to build upon
 """
 import os
 import logging
@@ -20,14 +20,14 @@ from matplotlib.collections import PathCollection
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.stats import gaussian_kde
 
-from plots import utils
+from sciplots import utils
 
 plt.style.use(["science", "grid", 'no-latex'])
 
 
 class BasePlot:
     """
-    Base class for creating plots
+    Base class for creating sciplots
 
     Attributes
     ----------
@@ -437,7 +437,7 @@ class BasePlot:
         hatch : str, default = ''
             Hatching pattern for the contour
         order : list[int] | None, default = None
-            Order of the axes, only required for 3D plots
+            Order of the axes, only required for 3D sciplots
         confidences : list[float] | None, default = [0.68]
             List of confidence values to plot contours for, starting with the lowest confidence
 
@@ -792,11 +792,11 @@ class BasePlot:
         data : (N,L) ndarray
             Data to plot parameter pairs for N data points and L parameters
         hatch : str = ''
-            Hatching of the histograms or density plots and contours
+            Hatching of the histograms or density sciplots and contours
         ranges : (L,2) ndarray, default = None
             Ranges for L parameters, required if using kwargs to plot densities
         markers : (N) ndarray | None = None
-            Markers for scatter plots for N data points
+            Markers for scatter sciplots for N data points
 
         **kwargs
             Optional keyword arguments passed to _plot_histogram and _plot_density
@@ -819,7 +819,7 @@ class BasePlot:
         # Loop through each subplot
         for i, (axes_row, y_data, y_range) in enumerate(zip(self.axes, data, ranges)):
             for j, (axis, x_data, x_range) in enumerate(zip(axes_row, data, ranges)):
-                # Share y-axis for all scatter plots
+                # Share y-axis for all scatter sciplots
                 if i != j:
                     axis.sharey(axes_row[0])
 
@@ -827,7 +827,7 @@ class BasePlot:
                 axis.locator_params(axis='x', nbins=3)
                 axis.locator_params(axis='y', nbins=3)
 
-                # Hide ticks for plots that aren't in the first column or bottom row
+                # Hide ticks for sciplots that aren't in the first column or bottom row
                 if j != 0 or j == i:
                     axis.tick_params(labelleft=False, left=False)
 
@@ -838,7 +838,7 @@ class BasePlot:
                     axis.set_xlim(x_range)
                     axis.set_ylim(y_range)
 
-                # Plot scatter plots & histograms
+                # Plot scatter sciplots & histograms
                 if i == j:
                     self.plot_hist(
                         colour,

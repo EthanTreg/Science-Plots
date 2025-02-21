@@ -8,8 +8,8 @@ import numpy as np
 from numpy import ndarray
 from matplotlib.axes import Axes
 
-from plots import utils
-from plots.base import BasePlot
+from sciplots import utils
+from sciplots.base import BasePlot
 
 
 class _BaseSinglePlot(BasePlot):
@@ -157,7 +157,7 @@ class _BaseSinglePlot(BasePlot):
         set_lim([min(mins), max(maxs)])
 
     def _post_init(self) -> None:
-        self._default_name = 'plots'
+        self._default_name = 'sciplots'
 
         if self._axis_pad:
             return
@@ -536,7 +536,7 @@ class PlotDistribution(BasePlot):
         y_axes : bool, default = True
             If the y-axis should have ticks
         density : bool, default = False
-            If the distributions should be histograms or density plots
+            If the distributions should be histograms or density sciplots
         bins : int, default = 100
             Number of bins for histograms or density interpolation
         x_label : str, default = ''

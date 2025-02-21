@@ -8,9 +8,9 @@ from numpy import ndarray
 from scipy.stats import pearsonr
 from matplotlib.axes import Axes
 
-from plots import utils
-from plots.base import BasePlot
-from plots.utils import label_change
+from sciplots import utils
+from sciplots.base import BasePlot
+from sciplots.utils import label_change
 
 
 class PlotConfusion(BasePlot):
