@@ -1,0 +1,8 @@
+**/*[Tt][Ee][Ss][Tt]*
+**/*[Tt][Ee][Mm][Pp]*
+/.idea
+__pycache__/
+/venv/
+/*.egg-info/
+/build/
+/.cadence/
