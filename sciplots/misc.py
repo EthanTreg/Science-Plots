@@ -29,6 +29,11 @@ class PlotDistributions(BasePlot):
         Plot figure
     legend : Legend | None, default = None
         Plot legend
+
+    Methods
+    -------
+    plot_twin_data(data, label, y_labels)
+        Plots distributions with the same x-axis on a different y-axis
     """
     def __init__(
             self,
@@ -45,7 +50,6 @@ class PlotDistributions(BasePlot):
             hatches: str | tuple[str, str] = '',
             texts: list[str] | None = None,
             titles: list[str] | None = None,
-            data_twin: list[ndarray] | ndarray | None = None,
             **kwargs: Any):
         """
         Parameters
@@ -76,8 +80,6 @@ class PlotDistributions(BasePlot):
             Texts to be displayed on the distributions
         titles : list[str] | None, default = None
             Titles for the distributions
-        data_twin : list[(M) ndarray] | (M) ndarray | (B,M) ndarray | None, default = None
-            B twin distributions with M data points to plot on each distribution
 
         **kwargs
             Optional keyword arguments to pass to BasePlot
@@ -91,8 +93,9 @@ class PlotDistributions(BasePlot):
         self._titles: list[str] | None = titles
         self._texts: list[str]
         self._data: list[ndarray] | ndarray =  [data] if np.ndim(data[0]) < 1 else data
-        self._data_twin: list[ndarray] | list[None] | ndarray = [None] * len(self._data) \
-            if data_twin is None else data_twin
+        self._ranges: tuple[tuple[float, float], ...] = tuple(
+            (np.min(datum), np.max(datum)) for datum in self._data
+        )
 
         self._norm = True if any(datum.size == 1 for datum in self._data) else norm
         self._num_plots = min(num_plots, len(self._data))
@@ -112,55 +115,109 @@ class PlotDistributions(BasePlot):
     def _post_init(self) -> None:
         self._default_name = 'distributions'
 
-    def _plot_data(self) -> None:
-        assert isinstance(self.axes, dict)
-        text: str
+    def _axis_plot_data(
+            self,
+            colour: str,
+            hatch: str,
+            data: list[ndarray] | ndarray,
+            axes: list[Axes]) -> None:
+        """
+        Plots the data for a given axis
+
+        Parameters
+        ----------
+        colour : str
+            Colour of the distributions
+        hatch : str
+            Hatch pattern for the distributions
+        data : list[(N) ndarray] | (N) ndarray | (B,N) ndarray
+            B sets of N values to plot
+        axes : list[Axes]
+            Axis to plot the data on
+        """
         range_: tuple[float, float]
-        data: ndarray
-        data_twin: ndarray
+        datum: ndarray
         axis: Axes
 
-        for text, data, data_twin, axis in zip(
-                self._texts,
-                self._data,
-                self._data_twin,
-                self.axes.values()):
-            range_ = (
-                    min(np.min(data), np.min(data_twin)),
-                    max(np.max(data), np.max(data_twin)),
-                )
+        for range_, datum, axis in zip(self._ranges, data, axes):
             axis.set_xscale('log' if self._log else 'linear')
             self.plot_hist(
-                self._colours[0],
-                data,
+                colour,
+                datum,
                 axis,
                 log=self._log,
                 norm=self._norm,
-                hatch=self._hatches[0] if isinstance(self._hatches, tuple) else self._hatches,
+                hatch=hatch,
                 range_=range_,
-            )
-            self.plot_hist(
-                self._colours[1],
-                data_twin,
-                axis,
-                log=self._log,
-                norm=self._norm,
-                hatch=self._hatches[1] if isinstance(self._hatches, tuple) else self._hatches,
-                range_=(
-                    min(np.min(data), np.min(data_twin)),
-                    max(np.max(data), np.max(data_twin)),
-                ),
             )
 
             if not self._y_axes:
                 axis.tick_params(labelleft=False, left=False)
 
+    def _plot_data(self) -> None:
+        assert isinstance(self.axes, dict)
+        text: str
+        axis: Axes
+
+        self._axis_plot_data(
+            self._colours[0],
+            self._hatches[0] if isinstance(self._hatches, tuple) else self._hatches,
+            self._data,
+            list(self.axes.values()),
+        )
+
+        for text, axis in zip(self._texts, self.axes.values()):
             if text:
                 axis.add_artist(mpl.offsetbox.AnchoredText(
                     text,
                     loc=self._text_loc,
-                    prop={'fontsize': utils.MINOR}
+                    prop={'fontsize': utils.MINOR},
                 ))
+
+    def plot_twin_data(
+            self,
+            data: list[ndarray] | ndarray,
+            label: str = '',
+            y_labels: str | list[str] = '') -> None:
+        """
+        Plots distributions with the same x-axis on a different y-axis
+
+        Parameters
+        ----------
+        data : list[(N) ndarray] | (N) ndarray | (B,N) ndarray
+            B sets of N values to plot
+        label : str, default = ''
+            Label for the distributions
+        y_labels : list[str] | None, default = ''
+            Y-axis labels
+        """
+        y_label: str
+        axes: list[Axes] = [axis.twinx() for axis in self.axes.values()]
+        axis: Axes
+        data = [data] if np.ndim(data[0]) < 1 else data
+        y_labels = [y_labels] if isinstance(y_labels, str) else y_labels
+
+        if len(data) == 1:
+            data = [data[0]] * len(self._data)
+
+        if len(y_labels) == 1:
+            y_labels *= len(data)
+
+        for y_label, axis in zip(y_labels, axes):
+            self._axis_init(axis)
+            axis.set_ylabel(y_label, fontsize=self._major)
+
+        self._axis_plot_data(
+            self._colours[1],
+            self._hatches[1] if isinstance(self._hatches, tuple) else self._hatches,
+            data,
+            axes,
+        )
+
+        if label:
+            self._labels = self._labels + [label] if self._labels is not None else [label]
+            self.legend.remove()
+            self.create_legend(**self._legend_kwargs)
 
 
 class PlotImages(BasePlot):

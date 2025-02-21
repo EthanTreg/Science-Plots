@@ -14,5 +14,5 @@ setup(
     author_email='ethan.tregidga@epfl.ch',
     license='MIT',
     packages=['sciplots'],
-    install_requires=['numpy', 'scipy', 'matplotlib'],
+    install_requires=['numpy', 'scipy', 'matplotlib', 'SciencePlots'],
 )

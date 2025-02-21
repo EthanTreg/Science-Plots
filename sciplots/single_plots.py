@@ -28,6 +28,11 @@ class _BaseSinglePlot(BasePlot):
         Plot figure
     legend : Legend | None, default = None
         Plot legend
+
+    Methods
+    -------
+    plot_twin_data(y_data, log_y, y_label, labels, x_data, x_error, y_error)
+        Plots data with the same x-axis on a different y-axis
     """
     def __init__(
             self,
@@ -87,10 +92,10 @@ class _BaseSinglePlot(BasePlot):
         self._y_error: list[ndarray] | list[None] | ndarray
 
         if len(self._data) == 1:
-            self._data *= len(self._y_data)
+            self._data = [self._data[0]] * len(self._y_data)
 
         if len(self._y_data) == 1:
-            self._y_data *= len(self._data)
+            self._y_data = [self._y_data[0]] * len(self._data)
 
         if isinstance(markers, str):
             self._markers = [markers] * len(self._data)
@@ -261,10 +266,10 @@ class _BaseSinglePlot(BasePlot):
         axis.set_ylabel(y_label, fontsize=self._major)
 
         if len(x_data) == 1:
-            x_data *= len(y_data)
+            x_data = [x_data[0]] * len(y_data)
 
         if len(y_data) == 1:
-            y_data *= len(self._data)
+            y_data *= [y_data[0]] * len(self._data)
 
         if x_error is None:
             x_error = [None] * len(self._data)
