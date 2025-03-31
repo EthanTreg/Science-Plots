@@ -3,7 +3,7 @@ Base plotting class for other sciplots to build upon
 """
 import os
 import logging
-from typing import Any
+from typing import Any, Type
 
 import numpy as np
 import scienceplots  # pylint: disable=unused-import
@@ -14,9 +14,17 @@ from matplotlib.axes import Axes
 from matplotlib.lines import Line2D
 from matplotlib.artist import Artist
 from matplotlib.legend import Legend
-from matplotlib.contour import ContourSet
+from matplotlib.patches import Polygon
+from matplotlib.colors import XKCD_COLORS
+from matplotlib.contour import QuadContourSet
 from matplotlib.figure import Figure, FigureBase
-from matplotlib.collections import PathCollection
+from matplotlib.container import Container, BarContainer, ErrorbarContainer
+from matplotlib.collections import (
+    Collection,
+    LineCollection,
+    PathCollection,
+    FillBetweenPolyCollection,
+)
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.stats import gaussian_kde
 
@@ -31,8 +39,8 @@ class BasePlot:
 
     Attributes
     ----------
-    plots : list[Artist], default = []
-        Plot artists
+    plots : dict[Axes, list[Artist | Container]], default = {}
+        Plot artists for each axis
     axes : dict[int | str, Axes] | (R,C) ndarray | Axes
         Plot axes for R rows and C columns
     subfigs : (H,W) ndarray | None, default = None
@@ -44,42 +52,60 @@ class BasePlot:
 
     Methods
     -------
-    savefig(path, name='')
+    cast(func, objs, obj_first=True, kwargs_unique=False, args=None, kwargs=None) -> list[Any]
+        Casts args and kwargs to a given function for a set of objects
+    savefig(path, name='', **kwargs)
         Saves the plot to the specified path
     subfigs(subfigs, titles=None, x_labels=None, y_labels=None, **kwargs)
         Initialises sub figures
-    subplots(subplots, titles=None, fig=None, **kwargs)
+    subplots(subplots, titles=None, x_labels=None, y_labels=None, fig=None, **kwargs)
         Generates subplots within a figure or sub-figure
-    create_legend(rows=1, loc='outside upper center')
+    create_legend(axis=False, rows=1, cols=0, loc='outside upper center')
         Plots the legend
-    plot_density(colour, data, ranges, axis, hatch='', order=None, confidences=None, **kwargs)
+    set_axes_pad(pad=0)
+        Sets the padding on all plot axes
+    plot_density(colour, data, ranges, axis, label='', hatch='', order=None, confidences=None,
+            **kwargs)
         Plots a density contour plot
-    plot_errors(colour, x_data, y_data, axis, error_region=False, x_error=None, y_error=None,
+    plot_errors(colour, x_data, y_data, axis, label='', marker='', x_error=None, y_error=None,
             **kwargs)
         Plots errors on a scatter plot
-    plot_histogram(colour, data, axis, log=False, norm=False, orientation='vertical', hatch='',
+    plot_grid(matrix, axis, diverge=False, precision=3, x_labels=None, y_labels=None, range_=None)
+        Plots a grid of values using an image plot
+    plot_hist(colour, data, axis, log=False, norm=False, label='', orientation='vertical', hatch='',
             range_=None, **kwargs)
         Plots a histogram or density plot
-    plot_param_pairs(colour, data, hatch='', ranges=None, markers=None, **kwargs)
+    plot_param_pairs(colour, data, norm=False, label='', hatch='', ranges=None, markers=None,
+            **kwargs)
         Plots a pair plot to compare the distributions and comparisons between parameters
-    plot_residuals(colour, x_data, pred, target, axis, error=False, error_region=False,
-            target_colour=None, uncertainty=None, major_axis=None)
+    plot_residuals(colour, x_data, pred, target, axis, error=False, label='', target_colour=None,
+            uncertainty=None, major_axis=None, **kwargs)
         Plots comparison and residuals
     """
+    _error_region: bool = False
+    _scatter_num: int = 1000
+    _major: float = 24
+    _minor: float = 20
+    _cap_size: float = 5
+    _alpha_2d: float = 0.4
+    _alpha_line: float = 0.9
+    _marker_size: float = 100
+    _alpha_marker: float = 0.6
+    _minor_tick_factor: float = 0.8
+    _logger: logging.Logger = logging.getLogger(__name__)
+
     def __init__(
             self,
             data: Any,
             density: bool = False,
             bins: int = 100,
-            alpha: float = 0.6,
-            alpha_2d: float = 0.4,
             title: str = '',
             x_label: str = '',
             y_label: str = '',
             labels: list[str] | None = None,
             colours: list[str] | None = None,
             fig_size: tuple[float, float] = utils.RECTANGLE,
-            **kwargs: Any):
+            **kwargs: Any) -> None:
         """
         Parameters
         ----------
@@ -111,74 +137,222 @@ class BasePlot:
         """
         self._density: bool = density
         self._bins: int = bins
-        self._alpha: float = alpha
-        self._alpha_2d: float = alpha_2d
-        self._minor_tick_factor: float = 0.8
-        self._marker_size: float = 100 * fig_size[0] / utils.RECTANGLE[0]
-        self._major: float = utils.MAJOR * fig_size[0] / utils.RECTANGLE[0]
-        self._minor: float = utils.MINOR * fig_size[0] / utils.RECTANGLE[0]
-        self._default_name: str = 'base'
-        self._labels: list[str] | None = labels
-        self._colours: list[str] = colours or utils.COLOURS
+        self._scale: float = fig_size[0] / utils.RECTANGLE[0]
+        self._labels: list[str] = labels or ['']
+        self._colours: list[str] = colours or list(XKCD_COLORS.values())[::-1]
         self._fig_size: tuple[float, float] = fig_size
         self._data: Any = data
         self._legend_axis: Axes | None = None
         self._legend_kwargs: dict[str, Any] = kwargs
-        self.plots: list[Artist] = []
+        self.plots: dict[Axes, list[Artist | Container]] = {}
         self.axes: dict[int | str, Axes] | ndarray | Axes
         self.subfigs: ndarray | None = None
         self.fig: Figure = plt.figure(constrained_layout=True, figsize=self._fig_size)
         self.legend: Legend | None = None
 
+        self._major *= self._scale
+        self._minor *= self._scale
+        self._cap_size *= self._scale
+        self._marker_size *= self._scale
+
+        # Generation of the plot
         self.fig.suptitle(title, fontsize=self._major)
         self.fig.supxlabel(x_label, fontsize=self._major)
         self.fig.supylabel(y_label, fontsize=self._major)
+        self._process_kwargs(self._legend_kwargs)
         self._axes_init()
         self._post_init()
+        self._update_plots_dict()
         self._plot_data()
+        self.set_axes_pad()
 
-        if self._labels is not None and self._labels[0]:
+        if self._labels[0]:
             self.create_legend(**self._legend_kwargs)
 
     @staticmethod
-    def _multi_param_func_calls(
-            func: str,
-            objs: list[object] | ndarray,
-            *args: list[Any] | None,
-            kwargs: list[dict[str, Any]] | dict[str, Any] | None = None) -> None:
+    def _data_length_normalise(
+            x_data: list[ndarray] | ndarray,
+            lists: list[list[Any] | Any] | None = None,
+            data: list[list[ndarray] | ndarray | None] | None = None) -> tuple[
+        list[ndarray] | ndarray,
+        list[list[Any]],
+        list[list[ndarray] | list[None] | ndarray]]:
         """
-        Calls a function for multiple objects with different arguments and keyword arguments
+        Normalises the length and format of plot data
 
         Parameters
         ----------
-        func : str
-            Name of the object's function to call
-        objs : list[object] | (N) ndarray
-            List of N objects to apply the function to
+        x_data : list[ndarray] | ndarray | ndarray
+            Primary data as list of B sets of x-values with ndarray shape of N, a (N) ndarray, or a
+            (B,N) ndarray, if x_data has a length of 1 or has shape (N), then B will be set to the
+            length of the first element in data if not None
+        lists : list[list[Any] | Any] | None, default = None
+            Additional data paired to the number B sets of data
+        data : list[list[ndarray] | ndarray | None] | None, default = None
+            Additional data, each a list of M sets of values with ndarray shape of N, a (N) ndarray,
+            or a (M,N) ndarray, if the data has a length of 1 or has shape (N), then M will be set
+            to the length of x_data, if not None
 
-        *args : list[Any] | None
-            Arguments to pass to the function
-        **kwargs : list[dict[str, Any]] | dict[str, Any] | None, default = None
-            Optional keyword arguments to pass to the function
+        Returns
+        -------
+        tuple[list[ndarray] | ndarray, list[list[Any]], list[list[ndarray | list[None] | ndarray]
+            List of B sets of x_data with ndarray shape N, or a (B,N) ndarray; lists, each with
+            length B; and additional data, each a list of B sets of data with ndarray shape N, or a
+            (B,N) ndarray, if not None
         """
-        obj: object
-        kwarg: dict[str, Any]
-        arg: Any
+        x_data = [x_data] if np.ndim(x_data[0]) < 1 else x_data
+        data = [datum if datum is None else
+                [datum] if np.ndim(datum[0]) < 1 else datum for datum in data] \
+            if data is not None else None
 
-        if len(args) != 0 and args[0] is None:
-            return
-        if len(args) == 0 or args[0] is None:
-            args = [()] * len(objs)
-        else:
-            args = [tuple(arg) for arg in zip(*args)]
+        if data is not None and len(x_data) == 1:
+            x_data = [x_data[0]] * len(data[0])
 
-        if kwargs is None:
-            kwargs = [{}] * len(objs)
-        elif isinstance(kwargs, dict):
-            kwargs = [kwargs] * len(objs)
+        for i, datum in enumerate(data) if data is not None else []:
+            if datum is None:
+                data[i] = [None] * len(x_data)
+            else:
+                datum = [datum] if np.ndim(datum[0]) < 1 else datum
+                data[i] = [datum[0]] * len(x_data) if len(datum) == 1 else datum
 
-        for obj, arg, kwarg in zip(objs, args, kwargs):
-            getattr(obj, func)(*arg, **kwarg)
+        for i, list_ in enumerate(lists) if lists is not None else []:
+            if not isinstance(list_, list):
+                lists[i] = [list_] * len(x_data)
+
+        return x_data, lists, data
+
+    @staticmethod
+    def _unique_objects(func: callable, objects: ndarray) -> list[object]:
+        """
+        Returns objects if the return from the function is not the same for all objects
+
+        Parameters
+        ----------
+        func : callable
+            Function to call for each object
+        objects : (N) ndarray
+            N objects to see if they are all the same or not
+
+        Returns
+        -------
+        list[object]
+            List of objects if they are not all the same, else empty list
+        """
+        return objects.tolist() if len(np.unique(
+            np.array([func(b) for b in objects], dtype=str)
+        )) > 1 else []
+
+    def _twin_axes(
+            self,
+            x_axis: bool = True,
+            labels: str | list[str] = '') -> dict[int | str, Axes] | ndarray | Axes:
+        """
+        Gets the twin axes for either the x-axis or y-axis
+
+        Parameters
+        ----------
+        x_axis : bool, default = True
+            If the twin axis should be x or y
+        labels : str | list[str], default = ''
+            Labels for the x or y axes, if it is a string, all axes will have the same label
+
+        Returns
+        -------
+        dict[int | str, Axes] | ndarray | Axes
+            Twin axes with the same form as self.axes
+        """
+        axes: dict[int | str, Axes] | ndarray | Axes = utils.cast_func(
+            'twinx' if x_axis else 'twiny',
+            [self.axes] if isinstance(self.axes, Axes) else self.axes,
+        )
+
+        if labels:
+            utils.cast_func(
+                'set_ylabel' if x_axis else 'set_xlabel',
+                [axes] if isinstance(axes, Axes) else axes,
+                args=[labels] if isinstance(labels, str) else labels,
+                kwargs={'fontsize': self._major},
+            )
+
+        self._update_plots_dict(axes)
+        return axes
+
+    def _patch_ranges(self, patch: Artist) -> tuple[ndarray, ndarray] | None:
+        """
+        Calculates the data range for the given patch
+
+        Parameters
+        ----------
+        patch : Artist
+            Patch to calculate the data range for
+
+        Returns
+        -------
+        tuple[(2) ndarray, (2) ndarray] | None
+            Minimum and maximum for x and y axes if the patch is known and has data
+        """
+        idx: int
+        data: list[tuple[ndarray, ndarray]] | list[ndarray] | ndarray
+        datum: ndarray
+
+        match patch:
+            case Line2D():
+                assert isinstance(patch, Line2D)
+                data = np.stack((patch.get_xdata(), patch.get_ydata()), axis=-1)
+            case Polygon():
+                assert isinstance(patch, Polygon)
+                data = patch.get_xy()
+            case PathCollection():
+                assert isinstance(patch, PathCollection)
+                data = patch.get_offsets().data
+            case LineCollection():
+                assert isinstance(patch, LineCollection)
+                data = np.concat([datum for datum in patch.get_segments() if np.ndim(datum) > 1])
+            case Collection() | QuadContourSet():
+                assert isinstance(patch, (Collection, QuadContourSet))
+                data = patch.get_paths()[0].vertices
+            case BarContainer():
+                assert isinstance(patch, BarContainer)
+                data = np.array([(
+                    rectangle.get_xy(),
+                    (rectangle.get_height(), rectangle.get_width()),
+                ) for rectangle in patch])
+                idx = int((data[:, 0] != 0).all(axis=0)[1])
+                data = data[:, ::(-1 if idx else 1), idx]
+            case Container():
+                data = [range_ for child in patch.get_children()
+                        if (range_ := self._patch_ranges(child)) is not None]
+
+                if not data:
+                    return None
+
+                data = np.concat(data)
+            case _:
+                self._logger.warning(f'Unknown plot type ({patch.__class__}), skipping calculation '
+                                     f'of axis padding for this plot type')
+                return None
+
+        return np.min(data, axis=0), np.max(data, axis=0)
+
+    def _process_kwargs(self, kwargs: dict[str, Any]) -> None:
+        """
+        Sets any attributes found in kwargs and removes them from kwargs
+
+        Parameters
+        ----------
+        kwargs : dict[str, Any]
+            Keyword arguments to process
+        """
+        key: str
+        value: Any
+
+        for key, value in list(kwargs.items()):
+            if hasattr(self, key):
+                setattr(self, key, value)
+                del kwargs[key]
+            elif hasattr(self, f'_{key}'):
+                setattr(self, f'_{key}', value)
+                del kwargs[key]
 
     def _axis_init(self, axis: Axes) -> None:
         """
@@ -192,13 +366,36 @@ class BasePlot:
         axis.tick_params(labelsize=self._minor)
         axis.tick_params(labelsize=self._minor * self._minor_tick_factor, which='minor')
 
-
     def _axes_init(self) -> None:
         """
         Initialises the axes
         """
         self.axes = self.fig.gca()
         self._axis_init(self.axes)
+
+    def _update_plots_dict(
+            self,
+            axes: dict[int | str, Axes] | ndarray | Axes | None = None) -> None:
+        """
+        Adds all axes to the plots dictionary
+
+        Parameters
+        ----------
+        axes : dict[int | str, Axes] | ndarray | Axes | None, default = None
+            Axes to add to the plots dictionary, if None, self.axes will be used
+        """
+        axes = self.axes if axes is None else axes
+
+        match axes:
+            case Axes():
+                assert isinstance(axes, Axes)
+                self.plots[axes] = []
+            case ndarray():
+                assert isinstance(axes, ndarray)
+                self.plots = self.plots | {axis: [] for axis in axes.flatten()}
+            case dict():
+                assert isinstance(axes, dict)
+                self.plots = self.plots | {axis: [] for axis in axes.values()}
 
     def _post_init(self) -> None:
         """
@@ -209,6 +406,117 @@ class BasePlot:
         """
         Plots the data
         """
+
+    def _axis_data_ranges(self, axis: Axes, pad: float = 0) -> ndarray | None:
+        """
+        Gets the range of all data on the given axis
+
+        Returns
+        -------
+        (N, 2, 2) ndarray | None
+            N sets of data minimum and maximum values for each axis or None if there is no data
+        """
+        range_: tuple[ndarray, ndarray] | None
+        ranges: list[tuple[ndarray, ndarray]] | ndarray = []
+        plot: Artist
+
+        for plot in self.plots[axis]:
+            if range_ := self._patch_ranges(plot):
+                ranges.append(range_)
+
+        if len(ranges) > 0:
+            ranges = np.array([np.min(ranges, axis=(0, 1)), np.max(ranges, axis=(0, 1))])
+            ranges += np.stack((
+                ranges[:, 0] if axis.get_xscale() == 'log' else
+                [np.max(np.abs(ranges), axis=0)[0]] * 2,
+                ranges[:, 1] if axis.get_yscale() == 'log' else
+                [np.max(np.abs(ranges), axis=0)[1]] * 2,
+            ), axis=1) * np.array([[-pad], [pad]])
+            return ranges
+        return None
+
+    def _label_handles(self) -> dict[str, list[Artist]]:
+        """
+        Gets the labels and handles for the legend
+
+        Returns
+        -------
+        dict[str, list[Artist]]
+            Labels with their respective handles
+        """
+        label: str
+        labels: list[str]
+        handles: list[Artist] = []
+        plot_types: list[Type[Artist]] = [
+            PathCollection,
+            Line2D,
+            Polygon,
+            FillBetweenPolyCollection,
+            BarContainer,
+            LineCollection,
+        ]
+        label_handles: dict[str, list[Artist] | tuple[Artist, ...]] = {}
+        plot_type: Type[Artist]
+        idxs: ndarray
+        plots: ndarray
+        plot: Artist
+
+        # Get unique artists
+        plots = np.array([[]] + list(self.plots.values())[0], dtype=object)[1:]
+        idxs = np.unique([plot.__class__.__name__ for plot in plots], return_index=True)[1]
+
+        # Get unique artists of the same type if they have a label
+        for plot_type in plots[idxs]:
+            idxs = np.array([isinstance(plot, plot_type.__class__) and
+                             plot.get_label() != '' and
+                             plot.get_label()[0] != '_' for plot in plots])
+
+            if not idxs.any():
+                continue
+
+            match plot_type:
+                case Line2D() | LineCollection():
+                    handles += self._unique_objects(lambda x: x.get_linestyle(), plots[idxs])
+                case Polygon() | FillBetweenPolyCollection() | PathCollection() | QuadContourSet():
+                    handles += self._unique_objects(lambda x: x.get_hatch(), plots[idxs])
+                case BarContainer():
+                    handles += self._unique_objects(
+                        lambda x: x.get_children()[0].get_hatch(),
+                        plots[idxs],
+                    )
+                case ErrorbarContainer():
+                    handles += self._unique_objects(
+                        lambda x: x.get_children()[0].get_linestyle(),
+                        plots[idxs],
+                    )
+                case _:
+                    self._logger.warning(f'Unknown plot type ({plot_type.__class__.__name__}), '
+                                         f'skipping handles for this plot type')
+
+        labels = [handle.get_label() for handle in handles]
+
+        # Get all handles for each label
+        for label in self._labels:
+            if not label:
+                continue
+
+            label_handles[label] = np.array(handles)[np.isin(labels, label)].tolist()
+
+        # If any label doesn't have a handle, get the first artist type depending on priority
+        for label, handles in label_handles.items():
+            for plot_type in plot_types:
+                if len(handles) != 0:
+                    break
+
+                idxs = np.array([
+                    isinstance(plot, plot_type) and plot.get_label() == label for plot in plots
+                ])
+                handles += plots[idxs].tolist()
+
+            if len(handles) == 0:
+                handles += plots[[plot.get_label() == label for plot in plots]].tolist()
+
+        return label_handles
 
     def savefig(self, path: str, name: str = '', **kwargs: Any) -> None:
         """
@@ -224,7 +532,7 @@ class BasePlot:
         **kwargs
             Optional keyword arguments to pass to Figure.savefig
         """
-        name = name or self._default_name
+        name = name or self.__class__.__name__.lower().replace('plot', '')
         name += '.png' if '.png' not in name else ''
         self.fig.savefig(os.path.join(path, name), **kwargs)
 
@@ -253,28 +561,29 @@ class BasePlot:
             Optional arguments for the subfigures function
         """
         self.subfigs = self.fig.subfigures(*subfigs, **kwargs)
-        self._multi_param_func_calls(
+        utils.cast_func(
             'suptitle',
-            self.subfigs.flatten(),
-            titles,
+            self.subfigs,
+            args=titles or [''],
             kwargs={'fontsize': self._major},
         )
-        self._multi_param_func_calls(
+        utils.cast_func(
             'supxlabel',
-            self.subfigs.flatten(),
-            x_labels,
+            self.subfigs,
+            args=x_labels or [''],
             kwargs={'fontsize': self._major},
         )
-        self._multi_param_func_calls(
+        utils.cast_func(
             'supylabel',
-            self.subfigs.flatten(),
-            y_labels,
+            self.subfigs,
+            args=y_labels or [''],
             kwargs={'fontsize': self._major},
         )
 
     def subplots(
             self,
-            subplots: str | tuple[int, int] | list[list[int | str]] | ndarray,
+            subplots: int | str | tuple[int, int] | list[list[int | str]] | ndarray,
+            borders: bool = False,
             titles: list[str] | None = None,
             x_labels: list[str] | None = None,
             y_labels: list[str] | None = None,
@@ -285,8 +594,10 @@ class BasePlot:
 
         Parameters
         ----------
-        subplots : str | tuple[int, int] | list[list[int | str]] | (R,C) ndarray
+        subplots : int | str | tuple[int, int] | list[list[int | str]] | (R,C) ndarray
             Parameters for subplots or subplot_mosaic for R rows and C columns
+        borders : bool, default = False
+            If axis labels should only apply to the far left and bottom axis
         titles : list[str] | None, default = None
             Titles for each axis
         x_labels : list[str] | None, default = None
@@ -299,43 +610,47 @@ class BasePlot:
         **kwargs
             Optional kwargs to pass to subplots or subplot_mosaic
         """
+        axes: dict[int | str, Axes] | ndarray
         fig = fig or self.fig
+
+        if isinstance(subplots, int):
+            subplots = utils.subplot_grid(subplots)
 
         if isinstance(subplots, tuple):
             self.axes = fig.subplots(*subplots, **kwargs)
         else:
             self.axes = fig.subplot_mosaic(subplots, **kwargs)
 
-        self._multi_param_func_calls(
+        utils.cast_func(
             'set_title',
-            self.axes.flatten() if isinstance(self.axes, ndarray) else self.axes.values(),
-            titles,
+            self.axes,
+            args=titles or [''],
             kwargs={'fontsize': self._major},
         )
-        self._multi_param_func_calls(
+        utils.cast_func('tick_params', self.axes, kwargs={'labelsize': self._minor})
+        utils.cast_func(
             'tick_params',
-            self.axes.flatten() if isinstance(self.axes, ndarray) else self.axes.values(),
-            kwargs={'labelsize': self._minor},
-        )
-        self._multi_param_func_calls(
-            'tick_params',
-            self.axes.flatten() if isinstance(self.axes, ndarray) else self.axes.values(),
+            self.axes,
             kwargs={'labelsize': self._minor * self._minor_tick_factor, 'which': 'minor'},
         )
 
-        if isinstance(self.axes, ndarray) and x_labels:
-            self._multi_param_func_calls(
-               'set_xlabel',
-                self.axes[-1],
-                x_labels,
+        if x_labels:
+            axes = self.axes[-1] if isinstance(self.axes, ndarray) else (
+                np.array(list(self.axes.values()))[np.unique(subplots[-1])])
+            utils.cast_func(
+                'set_xlabel',
+                axes if borders else self.axes,
+                args=x_labels,
                 kwargs={'fontsize': self._major},
             )
 
-        if isinstance(self.axes, ndarray) and y_labels:
-            self._multi_param_func_calls(
-               'set_ylabel',
-                self.axes[:, 0],
-                y_labels,
+        if y_labels:
+            axes = self.axes[:, 0] if isinstance(self.axes, ndarray) else (
+                np.array(list(self.axes.values()))[np.unique(subplots[:, 0])])
+            utils.cast_func(
+                'set_ylabel',
+                axes if borders else self.axes,
+                args=y_labels,
                 kwargs={'fontsize': self._major},
             )
 
@@ -343,6 +658,7 @@ class BasePlot:
             self,
             axis: bool = False,
             rows: int = 1,
+            cols: int = 0,
             loc: str | tuple[float, float] = 'outside upper center') -> None:
         """
         Plots the legend
@@ -353,29 +669,34 @@ class BasePlot:
             Whether to plot the legend on the axes or the figure
         rows : int, default = 1
             Number of rows for the legend
+        cols : int, default = 0
+            Number of columns for the legend, if 0, rows will be used
         loc : str | tuple[float, float], default = 'outside upper center'
             Location to place the legend
         """
-        cols: int = np.ceil(len(self._labels) / rows)
-        fig_size: float = self.fig.get_size_inches()[0] * self.fig.dpi
-        handles: list[tuple[Artist, ...]]
+        fig_size: float = float(self.fig.get_size_inches()[0]) * self.fig.dpi
+        label_handles: dict[str, list[Artist] | tuple[Artist, ...]]
         legend_range: ndarray
-        handle: ndarray | Artist
+        handle: Artist
         artist: Figure | Axes
 
-        # Generate legend handles
-        self.plots = [handle.legend_elements()[0][0] if isinstance(handle, ContourSet) else handle
-                      for handle in self.plots]
-        handles = [tuple(handle) for handle in np.array_split(self.plots, len(self._labels))]
+        if self.legend is not None:
+            self.legend.remove()
 
+        label_handles = self._label_handles()
+
+        # Formatting of the legend
         if axis and self._legend_axis is None:
             match self.axes:
-                case np.ndarray():
+                case ndarray():
                     artist = self.axes.flatten()[0]
                 case dict():
                     artist = list(self.axes.values())[0]
                 case Axes():
                     artist = self.axes
+                case _:
+                    raise ValueError(f'Unknown axes attribute type ({type(self.axes)}), must be'
+                                     f'either ndarray, dict, or Axes')
         elif axis:
             artist = self._legend_axis
         else:
@@ -383,20 +704,22 @@ class BasePlot:
 
         # Create legend
         self.legend = artist.legend(
-            handles,
-            self._labels,
+            label_handles.values(),
+            tuple(label_handles.keys()),
             fancybox=False,
-            ncol=cols,
+            ncol=cols or np.ceil(len(self._labels) / rows),
             fontsize=self._major,
             borderaxespad=0.2 * utils.RECTANGLE[1] / self._fig_size[1],
             loc=loc,
-            handler_map={tuple: utils.UniqueHandlerTuple(ndivide=None)}
+            handler_map=dict.fromkeys(
+                [list, tuple],
+                utils.UniqueHandlerTuple(ndivide=None),
+            ),
         )
         legend_range = np.array(self.legend.get_window_extent())[:, 0]
 
         # Recreate legend if it overflows the figure with more rows
         if legend_range[0] < 0:
-            self.legend.remove()
             rows = np.ceil((legend_range[1] - legend_range[0]) * rows / fig_size)
             self.create_legend(axis=axis, rows=rows, loc=loc)
 
@@ -406,10 +729,30 @@ class BasePlot:
                 handle.set_alpha(1)
 
             if isinstance(handle, PathCollection):
-                handle.set_sizes([100 * self._fig_size[0] / utils.RECTANGLE[0]])
+                handle.set_sizes([100 * self._scale])
 
             if isinstance(handle, Line2D):
                 handle.set_linewidth(2)
+
+    def set_axes_pad(self, pad: float = 0) -> None:
+        """
+        Sets the padding on all plot axes
+
+        Parameters
+        ----------
+        pad : float, default = 0
+            Fractional padding to the plot data
+        """
+        ranges: ndarray | None
+        axis: Axes
+
+        # Set the padding for each axis
+        for axis in self.plots:
+            ranges = self._axis_data_ranges(axis, pad=pad)
+
+            if ranges is not None:
+                axis.set_xlim(*ranges[:, 0])
+                axis.set_ylim(*ranges[:, 1])
 
     def plot_density(
             self,
@@ -417,6 +760,7 @@ class BasePlot:
             data: ndarray,
             ranges: ndarray,
             axis: Axes,
+            label: str = '',
             hatch: str = '',
             order: list[int] | None = None,
             confidences: list[float] | None = None,
@@ -434,6 +778,8 @@ class BasePlot:
             Min and max values for the x and y axes
         axis : Axes
             Axis to add density contour
+        label : str, default = ''
+            Label for the data
         hatch : str, default = ''
             Hatching pattern for the contour
         order : list[int] | None, default = None
@@ -446,7 +792,6 @@ class BasePlot:
         """
         total: float
         levels: list[float]
-        logger: logging.Logger = logging.getLogger(__name__)
         contour: ndarray
         grid: ndarray = np.mgrid[
                         ranges[0, 0]:ranges[0, 1]:self._bins * 1j,
@@ -457,7 +802,7 @@ class BasePlot:
         try:
             kernel = gaussian_kde(data.swapaxes(0, 1))
         except np.linalg.LinAlgError:
-            logger.warning('Cannot calculate contours, skipping')
+            self._logger.warning('Cannot calculate contours, skipping')
             return
 
         contour = np.reshape(kernel(grid.reshape(2, -1)).T, (self._bins, self._bins))
@@ -471,7 +816,7 @@ class BasePlot:
             levels.insert(0, utils.contour_sig(total * confidence, contour))
 
         if levels[-1] == 0:
-            logger.warning('Cannot calculate contours, skipping')
+            self._logger.warning('Cannot calculate contours, skipping')
             return
 
         contour = np.concatenate((grid, contour[np.newaxis]), axis=0)
@@ -479,7 +824,7 @@ class BasePlot:
         if order is not None:
             contour = contour[order]
 
-        self.plots.append(axis.contourf(
+        self.plots[axis].append(axis.contourf(
             *contour,
             levels,
             alpha=self._alpha_2d,
@@ -487,8 +832,10 @@ class BasePlot:
             hatches=[hatch],
             **kwargs,
         ))
-        self.plots[-1]._hatch_color = colors.to_rgba(colour, self._alpha)
-        self.plots.append(axis.contour(*contour, levels, colors=colour, **kwargs))
+        self.plots[axis][-1]._hatch_color = colors.to_rgba(colour, self._alpha_line)
+        self.plots[axis][-1].set_label(label)
+        self.plots[axis].append(axis.contour(*contour, levels, colors=colour, **kwargs))
+        self.plots[axis][-1].set_label(label)
 
     def plot_errors(
             self,
@@ -496,7 +843,7 @@ class BasePlot:
             x_data: ndarray,
             y_data: ndarray,
             axis: Axes,
-            error_region: bool = False,
+            label: str = '',
             marker: str = 'x',
             x_error: ndarray | None = None,
             y_error: ndarray | None = None,
@@ -514,57 +861,61 @@ class BasePlot:
             N y-data points
         axis : Axes
             Axis to plot the data
+        label : str, default = ''
+            Label for the data
         marker : str, default = 'x'
             Marker style for the data, if '', plot will be used
-        error_region : bool, default = False
-            If the errors should be error bars or a highlighted region, highlighted region only
-            supports y_errors
-        x_error : (N) ndarray | None, default = None
-            N x-errors
-        y_error : (N) ndarray | None, default = None
-            N y-errors
+        x_error : (N) ndarray | (2,N) ndarray | None, default = None
+            N x-errors, can be asymmetric
+        y_error : (N) ndarray | (2,N) ndarray | None, default = None
+            N y-errors, can be asymmetric
 
         **kwargs
             Optional keyword arguments to pass to Axes.scatter and Axes.errorbar
         """
         if marker:
-            self.plots.append(axis.scatter(
+            self.plots[axis].append(axis.scatter(
                 x_data,
                 y_data,
+                label=label,
                 color=colour,
                 marker=marker,
                 s=self._marker_size,
-                alpha=self._alpha,
+                alpha=self._alpha_marker,
                 **kwargs,
             ))
         else:
-            self.plots.append(axis.plot(
+            self.plots[axis].append(axis.plot(
                 x_data,
                 y_data,
-                alpha=self._alpha,
+                alpha=self._alpha_line,
+                label=label,
                 color=colour,
                 **kwargs,
             )[0])
 
-        if error_region and y_error is not None:
-            self.plots.append(axis.fill_between(
+        if self._error_region and y_error is not None:
+            self.plots[axis].append(axis.fill_between(
                 x_data,
-                y_data + y_error,
-                y_data - y_error,
+                y_data - y_error if np.ndim(y_error) == 1 else y_error[0],
+                y_data + y_error if np.ndim(y_error) == 1 else y_error[1],
+                label=label,
                 color=colour,
                 alpha=self._alpha_2d
             ))
         elif x_error is not None or y_error is not None:
-            self.plots.append(axis.errorbar(
+            self.plots[axis].append(axis.errorbar(
                 x_data,
                 y_data,
                 yerr=y_error,
                 xerr=x_error,
-                capsize=5,
-                alpha=self._alpha,
+                capsize=self._cap_size,
+                alpha=self._alpha_marker,
+                label=label,
                 color=colour,
+                linestyle='',
                 **kwargs,
-            )[0])
+            ))
 
     def plot_grid(
             self,
@@ -601,7 +952,7 @@ class BasePlot:
         value: float
         colour: str
         range_ = range_ or (np.min(matrix), np.max(matrix))
-        self.plots.append(axis.imshow(
+        self.plots[axis].append(axis.imshow(
             matrix,
             vmin=range_[0],
             vmax=range_[1],
@@ -643,6 +994,7 @@ class BasePlot:
             axis: Axes,
             log: bool = False,
             norm: bool = False,
+            label: str = '',
             orientation: str = 'vertical',
             hatch: str = '',
             range_: tuple[float, float] | None = None,
@@ -662,6 +1014,8 @@ class BasePlot:
             If data should be plotted on a log scale, expects linear data
         norm : bool, default = False
             If the histogram or density plot should be normalised to a maximum height of 1
+        label : str, default = ''
+            Label for the data
         orientation : {'vertical', 'horizontal'}, default = 'vertical'
             Orientation of the histogram or density plot
         hatch : str, default = ''
@@ -701,33 +1055,37 @@ class BasePlot:
                 y_data /= np.max(y_data)
 
             if orientation == 'vertical':
-                self.plots.append(axis.plot(
+                self.plots[axis].append(axis.plot(
                     x_data,
                     y_data,
                     color=colour,
+                    label=label,
                     **kwargs,
                 )[0])
-                self.plots.append(axis.fill_between(
+                self.plots[axis].append(axis.fill_between(
                     x_data,
                     y_data,
                     hatch=hatch,
+                    label=label,
                     facecolor=(colour, self._alpha_2d),
-                    edgecolors=(colour, self._alpha),
+                    edgecolors=(colour, self._alpha_line),
                     **kwargs,
                 ))
             else:
-                self.plots.append(axis.plot(
+                self.plots[axis].append(axis.plot(
                     y_data,
                     x_data,
                     color=colour,
+                    label=label,
                     **kwargs,
                 )[0])
-                self.plots.append(axis.fill_betweenx(
+                self.plots[axis].append(axis.fill_betweenx(
                     x_data,
                     y_data,
                     hatch=hatch,
+                    label=label,
                     facecolor=(colour, self._alpha_2d),
-                    edgecolor=(colour, self._alpha),
+                    edgecolor=(colour, self._alpha_line),
                     **kwargs,
                 ))
         elif norm:
@@ -736,21 +1094,25 @@ class BasePlot:
                 np.logspace(*np.log10(range_), self._bins) if log else self._bins,
             )
             y_data = y_data / np.max(y_data)
-            (axis.bar if orientation == 'vertical' else axis.barh)(
+            self.plots[axis].append((axis.bar if orientation == 'vertical' else axis.barh)(
                 x_data[:-1],
                 y_data,
                 np.diff(x_data),
+                label=label,
+                hatch=hatch,
                 align='edge',
                 color=colour,
                 alpha=self._alpha_2d,
                 **kwargs,
-            )
+            ))
+            # self.plots[axis][-1][0].set_label(label)
         else:
-            self.plots.append(axis.hist(
+            self.plots[axis].append(axis.hist(
                 data,
                 lw=2,
                 bins=np.logspace(*np.log10(range_), self._bins) if log else self._bins,
                 hatch=hatch,
+                label=label,
                 histtype='step',
                 alpha=edge_alpha,
                 orientation=orientation,
@@ -759,11 +1121,12 @@ class BasePlot:
                 range=range_,
                 **kwargs,
             )[-1][0])
-            self.plots.append(axis.hist(
+            self.plots[axis].append(axis.hist(
                 data,
                 lw=2,
                 bins=np.logspace(*np.log10(range_), self._bins) if log else self._bins,
                 hatch=hatch,
+                label=label,
                 histtype='stepfilled',
                 alpha=self._alpha_2d,
                 orientation=orientation,
@@ -778,6 +1141,7 @@ class BasePlot:
             colour: str,
             data: ndarray,
             norm: bool = False,
+            label: str = '',
             hatch: str = '',
             ranges: ndarray | None = None,
             markers: ndarray | None = None,
@@ -791,6 +1155,10 @@ class BasePlot:
             Colour of the data
         data : (N,L) ndarray
             Data to plot parameter pairs for N data points and L parameters
+        norm : bool, default = False
+            If the histogram or density plot should be normalised to a maximum height of 1
+        label : str, default = ''
+            Label for the data
         hatch : str = ''
             Hatching of the histograms or density sciplots and contours
         ranges : (L,2) ndarray, default = None
@@ -845,17 +1213,19 @@ class BasePlot:
                         x_data,
                         axis,
                         norm=norm,
+                        label=label,
                         hatch=hatch,
                         range_=x_range,
                         **kwargs,
                     )
                 elif j < i:
                     for marker in np.unique(markers):
-                        self.plots.append(axis.scatter(
-                            x_data[marker == markers][:utils.SCATTER_NUM],
-                            y_data[marker == markers][:utils.SCATTER_NUM],
+                        self.plots[axis].append(axis.scatter(
+                            x_data[marker == markers][:self._scatter_num],
+                            y_data[marker == markers][:self._scatter_num],
                             s=self._marker_size,
-                            alpha=self._alpha,
+                            alpha=self._alpha_marker,
+                            label=label,
                             color=colour,
                             marker=marker,
                         ))
@@ -867,6 +1237,7 @@ class BasePlot:
                             np.array((x_range, y_range)),
                             axis=axis,
                             hatch=hatch,
+                            label=label,
                             **kwargs,
                         )
                 else:
@@ -880,9 +1251,10 @@ class BasePlot:
             target: ndarray,
             axis: Axes,
             error: bool = False,
-            error_region: bool = False,
+            label: str = '',
             target_colour: str | None = None,
-            uncertainty: ndarray | None = None,
+            x_error: ndarray | None = None,
+            y_error: ndarray | None = None,
             major_axis: Axes | None = None,
             **kwargs: Any) -> Axes:
         """
@@ -902,12 +1274,14 @@ class BasePlot:
             Axis to plot on
         error : bool, default = False,
             If the residuals should be plotted as residuals or errors
-        error_region : bool, default = False
-            If the errors should be error bars or a highlighted region
+        label : str, default = ''
+            Label for the data
         target_colour : str | None, default = None
             Colour of the target data, if None, colour will be used
-        uncertainty : (N) ndarray | None, default = None
-            Uncertainties in the y predictions for N data points
+        x_error : (N) ndarray | (2,N) ndarray | None, default = None
+            N x-errors, can be asymmetric
+        y_error : (N) ndarray | (2,N) ndarray | None, default = None
+            N y-errors, can be asymmetric
         major_axis : Axes | None, default = None
             Major axis of the plot with the comparison
         **kwargs
@@ -919,13 +1293,17 @@ class BasePlot:
             Major axis of the plot with the comparison
         """
         major_axis = major_axis or make_axes_locatable(axis).append_axes('top', size='150%', pad=0)
+
+        if major_axis not in self.plots:
+            self.plots[major_axis] = []
+
         self.plot_errors(
             colour,
             x_data,
             (pred - target) / target if error else pred - target,
             axis,
-            error_region=error_region,
-            y_error=uncertainty / target if error else uncertainty,
+            x_error=x_error,
+            y_error=y_error / target if error else y_error,
             **kwargs,
         )
         self.plot_errors(
@@ -933,14 +1311,24 @@ class BasePlot:
             x_data,
             pred,
             major_axis,
-            error_region=error_region,
-            y_error=uncertainty,
+            label=label,
+            x_error=x_error,
+            y_error=y_error,
             **kwargs,
         )
-        major_axis.plot(x_data, target, color=target_colour or colour)
+        self.plots[major_axis].append(major_axis.plot(
+            x_data,
+            target,
+            color=target_colour or colour,
+        )[0])
 
         axis.set_ylabel('Error' if error else 'Residual', fontsize=self._major)
-        axis.hlines(0, xmin=np.min(x_data), xmax=np.max(x_data), color='k')
+        self.plots[axis].append(axis.hlines(
+            0,
+            xmin=np.min(x_data),
+            xmax=np.max(x_data),
+            color='k',
+        ))
         major_axis.tick_params(axis='y', labelsize=self._minor)
         major_axis.set_xticks([])
         return major_axis

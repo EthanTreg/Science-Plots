@@ -1,7 +1,8 @@
 """
 Utility functions for creating sciplots
 """
-from typing import Sequence
+from logging import getLogger
+from typing import Sequence, TypeVar, Any, Callable
 
 import numpy as np
 from numpy import ndarray
@@ -10,22 +11,19 @@ from matplotlib.lines import Line2D
 from matplotlib.artist import Artist
 from matplotlib.legend import Legend
 from matplotlib.patches import Ellipse
-from matplotlib.colors import XKCD_COLORS
 from matplotlib.transforms import Transform
 from matplotlib.legend_handler import HandlerTuple
 from scipy.optimize import minimize
 
-MAJOR: int = 24
-MINOR: int = 20
-SCATTER_NUM: int = 1000
 MARKERS: list[str] = list(Line2D.markers.keys())
-COLOURS: list[str] = list(XKCD_COLORS.values())[::-1]
 HATCHES: list[str] = ['/', '\\', '|', '-', '+', 'x', 'o', 'O', '.', '*', '/o', '\\|', '|*', '-\\',
                       '+o', 'x*', 'o-', 'O|', 'O.', '*-']
 RECTANGLE: tuple[int, int] = (16, 9)
 SQUARE: tuple[int, int] = (10, 10)
 HI_RES: tuple[int, int] = (32, 18)
 HI_RES_SQUARE: tuple[int, int] = (20, 20)
+
+IterableLike = TypeVar('IterableLike', list[object], dict[Any, object], ndarray)
 
 
 class UniqueHandlerTuple(HandlerTuple):
@@ -91,6 +89,104 @@ class UniqueHandlerTuple(HandlerTuple):
                 trans,
             )
         return artist_list
+
+
+def cast_func(
+        func: str | Callable,
+        objs: IterableLike,
+        obj_first: bool = True,
+        kwargs_unique: bool = False,
+        args: list[list[Any]] | list[Any] | None = None,
+        kwargs: list[dict[str, Any]] | dict[str, list[Any] | Any] | None = None) -> IterableLike:
+    """
+    Casts args and kwargs to a given function for a set of objects
+
+    Parameters
+    ----------
+    func : str | Callable
+        Function to call for the objects, if string, function will be treated as a method for the
+        object
+    objs : IterableLike
+        List of objects to apply the function
+    obj_first : bool, default = True
+        If the args argument is a list where the indices correspond to the object index, or if
+        the indices correspond to the argument index
+    kwargs_unique : bool, default = False
+        If the kwargs argument is a dictionary of lists with values for each object, or if each
+        kwarg has the same value for all objects, only used if kwargs is a dictionary
+    args : list[list[Any]] | list[Any] | None, default = None
+        Arguments to pass to the function for each object, can either have indices corresponding
+        to the object index, or corresponding to the argument index
+    kwargs : list[dict[str, Any]] | dict[str, list[Any] | Any] | None, default = None
+        Optional keyword arguments to pass to the function, can either be a list of dictionaries
+        with indices corresponding to the object index, or a dictionary of lists with values for
+        each object, or a dictionary of values used for all objects
+
+    Returns
+    -------
+    IterableLike
+        List of return values from the function call for each object
+    """
+    num: int = objs.size if isinstance(objs, ndarray) else len(objs)
+    func_name: str
+    key: str | Any
+    arg: list[Any]
+    idxs: tuple[int, ...]
+    kwarg: dict[str, Any]
+    obj: object
+    value: Any
+    returns: IterableLike
+
+    if isinstance(func, str):
+        func_name = func
+
+        def func(x, *y, **z):
+            return getattr(x, func_name)(*y, **z)
+
+    if args is None:
+        args = [()] * num
+    elif obj_first or not all(isinstance(arg, list) for arg in args):
+        args = list(zip(args))
+
+    if len(args) == 1:
+        args *= num
+
+    if kwargs is None:
+        kwargs = [{}] * num
+    elif isinstance(kwargs, dict):
+        if kwargs_unique or not all(isinstance(arg, list) for arg in kwargs.values()):
+            for key, value in kwargs.items():
+                kwargs[key] = [value]
+
+        if len(set(len(arg) for arg in kwargs.values())) > 1:
+            getLogger(__name__).warning(f'Not all lists in kwargs ({kwargs}) have the same length, '
+                                        f'only elements up to the length of the shortest length '
+                                        f'will be used')
+        kwargs = [dict(zip(kwargs.keys(), arg)) for arg in zip(*kwargs.values())]
+
+    if len(kwargs) == 1:
+        kwargs *= num
+
+    match objs:
+        case ndarray():
+            returns = np.empty_like(objs)
+
+            for idxs, arg, kwarg in zip(np.ndindex(objs.shape), args, kwargs):
+                returns[*idxs] = func(objs[*idxs], *arg, **kwarg)
+        case dict():
+            returns = {}
+
+            for (key, obj), arg, kwarg in zip(objs.items(), args, kwargs):
+                returns[key] = func(obj, *arg, **kwarg)
+        case list():
+            returns = []
+
+            for obj, arg, kwarg in zip(objs, args, kwargs):
+                returns.append(func(obj, *arg, **kwarg))
+        case _:
+            raise ValueError(f'Unknown type for objs ({type(objs)})')
+
+    return returns
 
 
 def contour_sig(counts: float, contour: ndarray) -> float:

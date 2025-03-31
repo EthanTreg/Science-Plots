@@ -19,8 +19,8 @@ class PlotConfusion(BasePlot):
 
     Attributes
     ----------
-    plots : list[Artist], default = []
-        Plot artists
+    plots : dict[Axes, list[Artist | Container]], default = {}
+        Plot artists for each axis
     axes : dict[int | str, Axes] | (R,C) ndarray | Axes
         Plot axes for R rows and C columns
     subfigs : (H,W) ndarray | None, default = None
@@ -36,7 +36,7 @@ class PlotConfusion(BasePlot):
             preds: ndarray,
             targets: ndarray,
             fig_size: tuple[int, int] = utils.HI_RES_SQUARE,
-            **kwargs: Any):
+            **kwargs: Any) -> None:
         """
         Parameters
         ----------
@@ -52,7 +52,6 @@ class PlotConfusion(BasePlot):
         **kwargs
             Optional keyword arguments to pass to BasePlot
         """
-        self._labels: list[str]
         self._data: ndarray
         self._targets: ndarray = targets
         self._classes: ndarray = np.unique(self._targets)
@@ -63,9 +62,6 @@ class PlotConfusion(BasePlot):
             **kwargs,
         )
 
-    def _post_init(self) -> None:
-        self._default_name = 'confusion'
-
     def _plot_data(self) -> None:
         assert isinstance(self.axes, Axes)
         class_: float
@@ -73,7 +69,7 @@ class PlotConfusion(BasePlot):
         counts: ndarray
         matrix_row: ndarray
         class_preds: ndarray
-        matrix: ndarray = np.empty((len(self._classes), len(self._classes)))
+        matrix: ndarray = np.zeros((len(self._classes), len(self._classes)))
 
         # Generate confusion matrix
         for matrix_row, class_ in zip(matrix, self._classes):
@@ -94,12 +90,18 @@ class PlotConfusion(BasePlot):
             ],
             range_=(0, 100),
         )
-        self.axes.set_xlabel('Predictions', fontsize=utils.MAJOR)
-        self.axes.set_ylabel('Targets', fontsize=utils.MAJOR)
+        self.axes.set_xlabel('Predictions', fontsize=self._major)
+        self.axes.set_ylabel('Targets', fontsize=self._major)
 
     def create_legend(self, *_, **__) -> None:
         """
         Confusion matrix should not have a legend
+        """
+        return
+
+    def set_axes_pad(self, _: float = 0) -> None:
+        """
+        Confusion matrix should not have axis padding
         """
         return
 
@@ -110,8 +112,8 @@ class PlotPearson(BasePlot):
 
     Attributes
     ----------
-    plots : list[Artist], default=[]
-        Plot artists
+    plots : dict[Axes, list[Artist | Container]], default = {}
+        Plot artists for each axis
     axes : dict[int | str, Axes] | (R,C) ndarray | Axes
         Plot axes for R rows and C columns
     subfigs : (H,W) ndarray | None, default=None
@@ -128,18 +130,18 @@ class PlotPearson(BasePlot):
             x_labels: list[str] | None = None,
             y_labels: list[str] | None = None,
             fig_size: tuple[int, int] = utils.HI_RES,
-            **kwargs: Any):
+            **kwargs: Any) -> None:
         """
         Parameters
         ----------
-        x_data : (N) ndarray
-            N data points for the x-axis
-        y_data : (N) ndarray
-            N data points for the y-axis
+        x_data : (N, P) ndarray
+            N data points for P parameters for the x-axis
+        y_data : (N, Q) ndarray
+            N data points for Q parameters for the y-axis
         x_labels : list[str] | None, default=None
-            Labels for the x-axis data points
+            Labels for the x-axis parameters
         y_labels : list[str] | None, default=None
-            Labels for the y-axis data points
+            Labels for the y-axis parameters
         fig_size : tuple[int, int], default=utils.HI_RES
             Size of the figure
 
@@ -151,9 +153,6 @@ class PlotPearson(BasePlot):
         self._data: ndarray = x_data.swapaxes(0, 1)
         self._y_data: ndarray = y_data.swapaxes(0, 1)
         super().__init__(self._data, fig_size=fig_size, **kwargs)
-
-    def _post_init(self) -> None:
-        self._default_name = 'pearson'
 
     def _plot_data(self) -> None:
         assert isinstance(self.axes, Axes)
@@ -171,3 +170,15 @@ class PlotPearson(BasePlot):
             y_labels=self._y_labels,
             range_=(-1, 1),
         )
+
+    def create_legend(self, *_, **__) -> None:
+        """
+        Pearson matrix should not have a legend
+        """
+        return
+
+    def set_axes_pad(self, _: float = 0) -> None:
+        """
+        Pearson matrix should not have axis padding
+        """
+        return

@@ -12,12 +12,12 @@ from sciplots.base import BasePlot
 
 class BaseParamPairs(BasePlot):
     """
-    A class for creating parameter pair sciplots
+    A class for creating parameter pair plots
 
     Attributes
     ----------
-    plots : list[Artist], default = []
-        Plot artists
+    plots : dict[Axes, list[Artist | Container]], default = {}
+        Plot artists for each axis
     axes : dict[int | str, Axes] | (R,C) ndarray | Axes
         Plot axes for R rows and C columns
     subfigs : (H,W) ndarray | None, default = None
@@ -27,6 +27,8 @@ class BaseParamPairs(BasePlot):
     legend : Legend | None, default = None
         Plot legend
     """
+    _alpha_marker: float = 0.2
+
     def __init__(
             self,
             x_data: list[ndarray] | ndarray,
@@ -36,7 +38,29 @@ class BaseParamPairs(BasePlot):
             y_labels: list[str] | None = None,
             y_data: list[ndarray] | ndarray | None = None,
             fig_size: tuple[int, int] = utils.HI_RES,
-            **kwargs: Any):
+            **kwargs: Any) -> None:
+        """
+        Parameters
+        ----------
+        x_data : list[(N,L) ndarray] | (N,L) ndarray | (B,N,L) ndarray
+            B sets of N data points for L parameters
+        density : bool, default = False
+            If the data should be plotted as contours and density sciplots or histograms
+        labels : list[str] | None, default = None
+            Label for each set of parameter comparisons
+        x_labels : list[str] | None, default = None
+            Labels for each x-axis parameter
+        y_labels : list[str] | None, default = None
+            Labels for each y-axis parameter
+        y_data : list[(N,P) ndarray] | (N,P) ndarray | (B,N,P) ndarray | None, default = None
+            B sets of N data points for P parameters to compare against x-axis parameters
+        fig_size : tuple[int, int], default = HI_RES
+            Size of the figure
+
+        **kwargs
+            Optional keyword arguments to pass to BasePlot
+        """
+        self._labels: list[str] = labels or ['']
         self._x_labels: list[str] | None = x_labels
         self._y_labels: list[str] | None = y_labels
         self._data: list[ndarray]
@@ -46,7 +70,7 @@ class BaseParamPairs(BasePlot):
         self._y_ranges: ndarray
 
         self._data, self._x_ranges = self._preprocessing(x_data)
-        self._y_data, self._y_ranges = self._preprocessing(y_data or x_data)
+        self._y_data, self._y_ranges = self._preprocessing(x_data if y_data is None else y_data)
 
         if len(self._data) == 1:
             self._data *= len(self._y_data)
@@ -54,7 +78,16 @@ class BaseParamPairs(BasePlot):
         if len(self._y_data) == 1:
             self._y_data *= len(self._data)
 
-        super().__init__(self._data, density=density, labels=labels, fig_size=fig_size, **kwargs)
+        if len(self._labels) == 1:
+            self._labels *= len(self._data)
+
+        super().__init__(
+            self._data,
+            density=density,
+            labels=self._labels,
+            fig_size=fig_size,
+            **kwargs,
+        )
 
     @staticmethod
     def _preprocessing(data: list[ndarray] | ndarray) -> tuple[list[ndarray], ndarray]:
@@ -85,13 +118,12 @@ class BaseParamPairs(BasePlot):
     def _axes_init(self) -> None:
         self.subplots(
             (self._y_data[0].shape[-1], self._data[0].shape[-1]),
+            borders=True,
             x_labels=self._x_labels,
             y_labels=self._y_labels,
             **self._subplot_kwargs,
         )
-
-    def _post_init(self) -> None:
-        self._alpha = 0.2
+        self.axes[0, 0].set_ylabel('')
 
 
 class PlotParamPairs(BaseParamPairs):
@@ -100,8 +132,8 @@ class PlotParamPairs(BaseParamPairs):
 
     Attributes
     ----------
-    plots : list[Artist], default = []
-        Plot artists
+    plots : dict[Axes, list[Artist | Container]], default = {}
+        Plot artists for each axis
     axes : dict[int | str, Axes] | (R,C) ndarray | Axes
         Plot axes for R rows and C columns
     subfigs : (H,W) ndarray | None, default = None
@@ -118,7 +150,7 @@ class PlotParamPairs(BaseParamPairs):
             labels: list[str] | None = None,
             axes_labels: list[str] | None = None,
             fig_size: tuple[int, int] = utils.HI_RES,
-            **kwargs: Any):
+            **kwargs: Any) -> None:
         """
         Parameters
         ----------
@@ -128,6 +160,8 @@ class PlotParamPairs(BaseParamPairs):
             If the data should be plotted as contours and density sciplots or histograms
         labels : list[str] | None, default = None
             Labels for each set of parameter comparisons
+        axes_labels : list[str] | None, default = None
+            Labels for the axes
         fig_size : tuple[int, int], default = HI_RES
             Size of the figure
 
@@ -145,13 +179,18 @@ class PlotParamPairs(BaseParamPairs):
             **kwargs,
         )
 
-    def _post_init(self) -> None:
-        super()._post_init()
-        self._default_name = 'param_pairs'
-
     def _plot_data(self) -> None:
-        for colour, data in zip(self._colours, self._data):
-            self.plot_param_pairs(colour, data, ranges=self._x_ranges)
+        label: str
+        colour: str
+        data: ndarray
+
+        for label, colour, data in zip(self._labels, self._colours, self._data):
+            self.plot_param_pairs(
+                colour,
+                data,
+                label=label,
+                ranges=self._x_ranges,
+            )
 
 
 class PlotParamPairComparison(BaseParamPairs):
@@ -160,8 +199,8 @@ class PlotParamPairComparison(BaseParamPairs):
 
     Attributes
     ----------
-    plots : list[Artist], default = []
-        Plot artists
+    plots : dict[Axes, list[Artist | Container]], default = {}
+        Plot artists for each axis
     axes : dict[int | str, Axes] | (R,C) ndarray | Axes
         Plot axes for R rows and C columns
     subfigs : (H,W) ndarray | None, default = None
@@ -180,7 +219,7 @@ class PlotParamPairComparison(BaseParamPairs):
             x_labels: list[str] | None = None,
             y_labels: list[str] | None = None,
             fig_size: tuple[int, int] = utils.HI_RES,
-            **kwargs: Any):
+            **kwargs: Any) -> None:
         """
         Parameters
         ----------
@@ -214,22 +253,28 @@ class PlotParamPairComparison(BaseParamPairs):
     def _axes_init(self) -> None:
         self.subplots(
             (self._y_data[0].shape[-1] + 1, self._data[0].shape[-1] + 1),
+            borders=True,
             x_labels=self._x_labels,
             y_labels=self._y_labels,
         )
 
-    def _post_init(self) -> None:
-        super()._post_init()
-        self._default_name = 'param_pair_comparison'
-
     def _plot_data(self) -> None:
+        label: str
+        colour: str
+        x_data: list[ndarray]
+        y_data: list[ndarray]
+        datum: ndarray
+        x_datum: ndarray
+        y_datum: ndarray
+
         assert isinstance(self.axes, ndarray)
         self.axes[0, -1].set_visible(False)
 
         x_data = [np.swapaxes(datum, 0, 1) for datum in self._data]
         y_data = [np.swapaxes(datum, 0, 1) for datum in self._y_data]
 
-        for colour, x_datum, y_datum in zip(
+        for label, colour, x_datum, y_datum in zip(
+                self._labels,
                 self._colours,
                 x_data,
                 y_data):
@@ -244,8 +289,8 @@ class PlotParamPairComparison(BaseParamPairs):
                     axis.set_xlim(col_range)
                     axis.set_ylim(row_range)
 
-                    # Set x & y labels and hide ticks for sciplots that aren't in the first column or
-                    # bottom row
+                    # Set x & y labels and hide ticks for sciplots that aren't in the first column
+                    # or bottom row
                     if j != 0:
                         axis.tick_params(labelleft=False, left=False)
 
@@ -273,6 +318,7 @@ class PlotParamPairComparison(BaseParamPairs):
                             colour,
                             row_data,
                             axes_row[-1],
+                            label=label,
                             orientation='horizontal',
                             range_=row_range,
                         )
@@ -284,12 +330,13 @@ class PlotParamPairComparison(BaseParamPairs):
                         )
 
                     # Plot scatter sciplots
-                    self.plots.append(axis.scatter(
-                        col_data[:utils.SCATTER_NUM],
-                        row_data[:utils.SCATTER_NUM],
+                    self.plots[axis].append(axis.scatter(
+                        col_data[:self._scatter_num],
+                        row_data[:self._scatter_num],
                         s=4,
-                        alpha=self._alpha,
+                        alpha=self._alpha_marker,
                         color=colour,
+                        label=label,
                     ))
 
                     if (self._density and
@@ -299,4 +346,5 @@ class PlotParamPairComparison(BaseParamPairs):
                             np.stack((col_data, row_data), axis=1),
                             np.array((col_range, row_range)),
                             axis=axis,
+                            label=label,
                         )

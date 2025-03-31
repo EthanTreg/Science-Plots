@@ -11,14 +11,14 @@ from sciplots import utils
 from sciplots.base import BasePlot
 
 
-class _BasePlotClusters(BasePlot):
+class BasePlotClusters(BasePlot):
     """
     Base class for plotting clusters
 
     Attributes
     ----------
-    plots : list[Artist], default = []
-        Plot artists
+    plots : dict[Axes, list[Artist | Container]], default = {}
+        Plot artists for each axis
     axes : dict[int | str, Axes] | (R,C) ndarray | Axes
         Plot axes for R rows and C columns
     subfigs : (H,W) ndarray | None, default = None
@@ -28,6 +28,9 @@ class _BasePlotClusters(BasePlot):
     legend : Legend | None, default = None
         Plot legend
     """
+    _alpha_marker: float = 0.3
+    _alpha_2d: float = 0.4
+
     def __init__(
             self,
             data: ndarray,
@@ -40,7 +43,7 @@ class _BasePlotClusters(BasePlot):
             hatches: list[str] | None = None,
             fig_size: tuple[int, int] = utils.RECTANGLE,
             preds: ndarray | None = None,
-            **kwargs: Any):
+            **kwargs: Any) -> None:
         """
         Parameters
         ----------
@@ -72,6 +75,7 @@ class _BasePlotClusters(BasePlot):
         pad: float = 0.05
         marker: str
         self._norm: bool = norm
+        self._labels: list[str] = labels or [''] * len(np.unique(targets))
         self._hatches: list[str] = hatches or [''] * len(np.unique(targets))
         self._data: ndarray
         self._targets: ndarray = targets
@@ -90,15 +94,11 @@ class _BasePlotClusters(BasePlot):
             data,
             density=density,
             bins=bins,
-            labels=labels,
+            labels=self._labels,
             colours=colours,
             fig_size=fig_size,
             **kwargs,
         )
-
-    def _post_init(self):
-        self._default_name = 'clusters'
-        self._contour_alpha = max(0.2, 1 / len(np.unique(self._targets)))
 
     def _plot_data(self) -> None:
         """
@@ -106,15 +106,21 @@ class _BasePlotClusters(BasePlot):
         """
         class_: float
         hatch: str
+        label: str
         colour: str
         idxs: ndarray
 
-        for class_, colour, hatch in zip(np.unique(self._targets), self._colours, self._hatches):
+        for class_, label, colour, hatch in zip(
+                np.unique(self._targets),
+                self._labels,
+                self._colours,
+                self._hatches):
             idxs = self._targets == class_
-            self._plot_clusters(colour, self._data[idxs], self._markers[idxs], hatch=hatch)
+            self._plot_clusters(label, colour, self._data[idxs], self._markers[idxs], hatch=hatch)
 
     def _plot_clusters(
             self,
+            label: str,
             colour: str,
             data: ndarray,
             markers: ndarray,
@@ -124,6 +130,8 @@ class _BasePlotClusters(BasePlot):
 
         Parameters
         ----------
+        label : str
+            Label for the data
         colour : str
             Colour for the class
         data : ndarray
@@ -135,14 +143,14 @@ class _BasePlotClusters(BasePlot):
         """
 
 
-class _PlotClusters1D(_BasePlotClusters):
+class _PlotClusters1D(BasePlotClusters):
     """
     Plots 1D cluster data as a histogram
 
     Attributes
     ----------
-    plots : list[Artist], default = []
-        Plot artists
+    plots : dict[Axes, list[Artist | Container]], default = {}
+        Plot artists for each axis
     axes : dict[int | str, Axes] | (R,C) ndarray | Axes
         Plot axes for R rows and C columns
     subfigs : (H,W) ndarray | None, default = None
@@ -154,6 +162,7 @@ class _PlotClusters1D(_BasePlotClusters):
     """
     def _plot_clusters(
             self,
+            label: str,
             colour: str,
             data: ndarray,
             _: ndarray,
@@ -175,19 +184,20 @@ class _PlotClusters1D(_BasePlotClusters):
             data.flatten(),
             self.axes,
             norm=self._norm,
+            label=label,
             hatch=hatch,
             range_=self._ranges[0],
         )
 
 
-class _PlotClusters2D(_BasePlotClusters):
+class _PlotClusters2D(BasePlotClusters):
     """
     Plots 2D cluster data with a wider scatter plot and horizontal histogram for dimension 2
 
     Attributes
     ----------
-    plots : list[Artist], default = []
-        Plot artists
+    plots : dict[Axes, list[Artist | Container]], default = {}
+        Plot artists for each axis
     axes : dict[int | str, Axes] | (R,C) ndarray | Axes
         Plot axes for R rows and C columns
     subfigs : (H,W) ndarray | None, default = None
@@ -208,10 +218,11 @@ class _PlotClusters2D(_BasePlotClusters):
         self.axes[0, 1].remove()
         self.axes[0, 0].tick_params(bottom=False)
         self.axes[1, 1].tick_params(left=False)
-        self.axes[0, 1].tick_params(labelsize=utils.MINOR)
+        self.axes[0, 1].tick_params(labelsize=self._minor)
 
     def _plot_clusters(
             self,
+            label: str,
             colour: str,
             data: ndarray,
             markers: ndarray,
@@ -222,6 +233,7 @@ class _PlotClusters2D(_BasePlotClusters):
             data[:, 0],
             self.axes[0, 0],
             norm=self._norm,
+            label=label,
             hatch=hatch,
             range_=self._ranges[0],
         )
@@ -232,30 +244,33 @@ class _PlotClusters2D(_BasePlotClusters):
             data[:, 1],
             self.axes[1, 1],
             norm=self._norm,
+            label=label,
             hatch=hatch,
             range_=self._ranges[1],
             orientation='horizontal',
         )
 
         for marker in np.unique(markers):
-            self.plots.append(self.axes[1, 0].scatter(
+            self.plots[self.axes[1, 0]].append(self.axes[1, 0].scatter(
                 *data[marker == markers].swapaxes(0, 1),
                 color=colour,
+                label=label,
                 marker=marker,
+                alpha=self._alpha_marker,
             ))
 
         if self._density:
-            self.plot_density(colour, data, self._ranges, self.axes[1, 0], hatch=hatch)
+            self.plot_density(colour, data, self._ranges, self.axes[1, 0], hatch=hatch, label=label)
 
 
-class _PlotClusters3D(_BasePlotClusters):
+class _PlotClusters3D(BasePlotClusters):
     """
     Plots 3D cluster data as a 3D plot
 
     Attributes
     ----------
-    plots : list[Artist], default = []
-        Plot artists
+    plots : dict[Axes, list[Artist | Container]], default = {}
+        Plot artists for each axis
     axes : dict[int | str, Axes] | (R,C) ndarray | Axes
         Plot axes for R rows and C columns
     subfigs : (H,W) ndarray | None, default = None
@@ -276,7 +291,7 @@ class _PlotClusters3D(_BasePlotClusters):
             hatches: list[str] | None = None,
             fig_size: tuple[int, int] = utils.SQUARE,
             preds: ndarray | None = None,
-            **kwargs: Any):
+            **kwargs: Any) -> None:
         """
         Parameters
         ----------
@@ -318,15 +333,16 @@ class _PlotClusters3D(_BasePlotClusters):
         )
 
     def _axes_init(self) -> None:
-        self._axes = self.fig.add_subplot(projection='3d')
-        self._axes.set_xlim(self._ranges[0])
-        self._axes.set_xlim(self._ranges[1])
-        self._axes.set_xlim(self._ranges[2])
-        self._axes.invert_yaxis()
-        self._axes.tick_params(labelsize=utils.MINOR)
+        self.axes = self.fig.add_subplot(projection='3d')
+        self.axes.set_xlim(self._ranges[0])
+        self.axes.set_xlim(self._ranges[1])
+        self.axes.set_xlim(self._ranges[2])
+        self.axes.invert_yaxis()
+        self.axes.tick_params(labelsize=self._minor)
 
     def _plot_clusters(
             self,
+            label: str,
             colour: str,
             data: ndarray,
             markers: ndarray,
@@ -337,11 +353,13 @@ class _PlotClusters3D(_BasePlotClusters):
         orders: list[list[int]] = [[0, 1, 2], [0, 2, 1], [2, 1, 0]]
 
         for marker in np.unique(markers):
-            assert isinstance(self._axes, Axes)
-            self.plots.append(self._axes.scatter(
+            assert isinstance(self.axes, Axes)
+            self.plots[self.axes].append(self.axes.scatter(
                 *data[marker == markers].swapaxes(0, 1),
                 color=colour,
+                label=label,
                 marker=marker,
+                alpha=self._alpha_marker,
             ))
 
         if self._density:
@@ -350,22 +368,23 @@ class _PlotClusters3D(_BasePlotClusters):
                     colour,
                     data[:, order[:2]],
                     self._ranges[order[:2]],
-                    self._axes,
+                    self.axes,
                     hatch=hatch,
+                    label=label,
                     order=order,
                     zdir=axes[order[-1]],
                     offset=self._ranges[order[-1], 0],
                 )
 
 
-class _PlotClustersND(_BasePlotClusters):
+class _PlotClustersND(BasePlotClusters):
     """
     Plots N number of cluster dimensions as a pair plot
 
     Attributes
     ----------
-    plots : list[Artist], default = []
-        Plot artists
+    plots : dict[Axes, list[Artist | Container]], default = {}
+        Plot artists for each axis
     axes : dict[int | str, Axes] | (R,C) ndarray | Axes
         Plot axes for R rows and C columns
     subfigs : (H,W) ndarray | None, default = None
@@ -386,7 +405,7 @@ class _PlotClustersND(_BasePlotClusters):
             hatches: list[str] | None = None,
             fig_size: tuple[int, int] = utils.HI_RES,
             preds: ndarray | None = None,
-            **kwargs: Any):
+            **kwargs: Any) -> None:
         """
         Parameters
         ----------
@@ -432,6 +451,7 @@ class _PlotClustersND(_BasePlotClusters):
 
     def _plot_clusters(
             self,
+            label: str,
             colour: str,
             data: ndarray,
             markers: ndarray,
@@ -439,10 +459,11 @@ class _PlotClustersND(_BasePlotClusters):
         self.plot_param_pairs(
             colour,
             data,
-            markers=markers,
+            norm=self._norm,
+            label=label,
             hatch=hatch,
             ranges=self._ranges,
-            norm=self._norm,
+            markers=markers,
         )
 
 
@@ -463,7 +484,7 @@ class PlotClusters:
             colours: list[str] | None = None,
             hatches: list[str] | None = None,
             preds: ndarray | None = None,
-            **kwargs: Any):
+            **kwargs: Any) -> BasePlotClusters:
         """
         Parameters
         ----------
