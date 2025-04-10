@@ -365,7 +365,7 @@ class PlotComparison(BaseSinglePlot):
                     x_error=x_error,
                     y_error=y_error,
                 )
-                self.plots[self.axes].append(self.axes.plot(x_data, target, color='k'))
+                self.plots[self.axes].append(self.axes.plot(x_data, target, color='k')[0])
             else:
                 self._major_axes = self.plot_residuals(
                     colour,
@@ -387,7 +387,6 @@ class PlotComparison(BaseSinglePlot):
             self._major_axes.set_yscale('log' if self._log_y else 'linear')
             self._major_axes.set_xticks([])
             self._legend_axis = self._major_axes
-            self.set_axes_pad()
         else:
             self.axes.set_yscale('log' if self._log_y else 'linear')
 
