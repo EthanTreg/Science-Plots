@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 from numpy import ndarray
 from matplotlib import colors
 from matplotlib.axes import Axes
+from matplotlib.text import Text
 from matplotlib.lines import Line2D
 from matplotlib.artist import Artist
 from matplotlib.legend import Legend
@@ -294,11 +295,19 @@ class BasePlot:
         idx: int
         data: list[tuple[ndarray, ndarray]] | list[ndarray] | ndarray
         datum: ndarray
+        widths: ndarray
 
         match patch:
             case Line2D():
                 assert isinstance(patch, Line2D)
-                data = np.stack((patch.get_xdata(), patch.get_ydata()), axis=-1)
+                data = np.stack((
+                    np.arange(len(x_data))
+                    if (x_data := patch.get_xdata()).dtype.type == np.str_ else
+                    x_data,
+                    np.arange(len(y_data))
+                    if (y_data := patch.get_ydata()).dtype.type == np.str_ else
+                    y_data,
+                ), axis=-1)
             case Polygon():
                 assert isinstance(patch, Polygon)
                 data = patch.get_xy()
@@ -313,12 +322,19 @@ class BasePlot:
                 data = patch.get_paths()[0].vertices
             case BarContainer():
                 assert isinstance(patch, BarContainer)
+                idx = patch.orientation == 'vertical'
+                widths = np.array([
+                    rect.get_width() if idx else rect.get_height() for rect in patch
+                ])
                 data = np.array([(
-                    rectangle.get_xy(),
-                    (rectangle.get_height(), rectangle.get_width()),
-                ) for rectangle in patch])
-                idx = int((data[:, 0] != 0).all(axis=0)[1])
-                data = data[:, ::(-1 if idx else 1), idx]
+                    rect.get_xy()[int(~idx)],
+                    rect.get_height() if idx else rect.get_width(),
+                ) for rect in patch])
+                data = np.concat((data, np.stack((
+                    data[:, 0] + widths,
+                    np.zeros_like(widths),
+                ), axis=-1)))
+                data = data[:, ::(1 if idx else -1)]
             case Container():
                 data = [range_ for child in patch.get_children()
                         if (range_ := self._patch_ranges(child)) is not None]
@@ -327,11 +343,12 @@ class BasePlot:
                     return None
 
                 data = np.concat(data)
+            case Text():
+                return None
             case _:
                 self._logger.warning(f'Unknown plot type ({patch.__class__}), skipping calculation '
                                      f'of axis padding for this plot type')
                 return None
-
         return np.min(data, axis=0), np.max(data, axis=0)
 
     def _process_kwargs(self, kwargs: dict[str, Any]) -> None:
@@ -462,7 +479,7 @@ class BasePlot:
         plot: Artist
 
         # Get unique artists
-        plots = np.array([[]] + list(self.plots.values())[0], dtype=object)[1:]
+        plots = np.array([[]] + sum(self.plots.values(), []), dtype=object)[1:]
         idxs = np.unique([plot.__class__.__name__ for plot in plots], return_index=True)[1]
 
         # Get unique artists of the same type if they have a label
@@ -514,7 +531,7 @@ class BasePlot:
                 handles += plots[idxs].tolist()
 
             if len(handles) == 0:
-                handles += plots[[plot.get_label() == label for plot in plots]].tolist()
+                handles += plots[[plot.get_label() == label for plot in plots]].tolist()[:1]
 
         return label_handles
 
@@ -1039,10 +1056,7 @@ class BasePlot:
         if log:
             axis.set_xscale('log')
 
-        if len(np.unique(data)) == 1:
-            norm = True
-
-        if range_ is None:
+        if range_ is None and data.dtype.type != np.str_:
             range_ = (np.min(data), np.max(data))
 
         if self._density and len(np.unique(data)) > 1:
@@ -1092,20 +1106,19 @@ class BasePlot:
             y_data, x_data = np.histogram(
                 data,
                 np.logspace(*np.log10(range_), self._bins) if log else self._bins,
-            )
+            ) if data.dtype.type != np.str_ else np.unique(data, return_counts=True)[::-1]
             y_data = y_data / np.max(y_data)
             self.plots[axis].append((axis.bar if orientation == 'vertical' else axis.barh)(
-                x_data[:-1],
+                x_data[:-1] if x_data.dtype.type != np.str_ else x_data,
                 y_data,
-                np.diff(x_data),
+                width=np.diff(x_data) if x_data.dtype.type != np.str_ else 0.8,
                 label=label,
                 hatch=hatch,
-                align='edge',
+                align='edge' if x_data.dtype.type != np.str_ else 'center',
                 color=colour,
                 alpha=self._alpha_2d,
                 **kwargs,
             ))
-            # self.plots[axis][-1][0].set_label(label)
         else:
             self.plots[axis].append(axis.hist(
                 data,
@@ -1325,8 +1338,8 @@ class BasePlot:
         axis.set_ylabel('Error' if error else 'Residual', fontsize=self._major)
         self.plots[axis].append(axis.hlines(
             0,
-            xmin=np.min(x_data),
-            xmax=np.max(x_data),
+            xmin=x_data[0] if x_data.dtype.type == np.str_ else np.min(x_data),
+            xmax=x_data[-1] if x_data.dtype.type == np.str_ else np.max(x_data),
             color='k',
         ))
         major_axis.tick_params(axis='y', labelsize=self._minor)

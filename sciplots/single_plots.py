@@ -365,7 +365,7 @@ class PlotComparison(BaseSinglePlot):
                     x_error=x_error,
                     y_error=y_error,
                 )
-                self.axes.plot(x_data, target, color='k')
+                self.plots[self.axes].append(self.axes.plot(x_data, target, color='k'))
             else:
                 self._major_axes = self.plot_residuals(
                     colour,
@@ -393,14 +393,14 @@ class PlotComparison(BaseSinglePlot):
 
         if len(self._data) == 1 and self._y_error[0] is not None and np.ndim(self._y_error[0]) == 1:
             axis = self._major_axes or self.axes
-            axis.text(
+            self.plots[axis].append(axis.text(
                 0.1,
                 0.9,
                 r'$\chi^2_\nu=$'
-                f'{np.mean((self._y_data[0] - self._data[0]) ** 2 / self._y_error[0] ** 2):.2f}',
+                f'{np.mean((self._y_data[0] - self._target[0]) ** 2 / self._y_error[0] ** 2):.2f}',
                 fontsize=self._minor,
                 transform=(self._major_axes or self.axes).transAxes,
-            )
+            ))
 
 
 class PlotPerformance(BaseSinglePlot):

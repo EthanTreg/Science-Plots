@@ -151,7 +151,7 @@ class BaseDistribution(BasePlot):
         label: str
         hatch: str
         colour: str
-        range_: tuple[float, float] = (
+        range_: tuple[float, float] | None = None if data[0].dtype.type == np.str_ else (
             float(np.min([np.min(datum) for datum in data])),
             float(np.max([np.max(datum) for datum in data])),
         )
