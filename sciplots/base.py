@@ -302,10 +302,10 @@ class BasePlot:
                 assert isinstance(patch, Line2D)
                 data = np.stack((
                     np.arange(len(x_data))
-                    if (x_data := patch.get_xdata()).dtype.type == np.str_ else
+                    if (x_data := patch.get_xdata()).dtype.type in {np.str_, np.object_} else
                     x_data,
                     np.arange(len(y_data))
-                    if (y_data := patch.get_ydata()).dtype.type == np.str_ else
+                    if (y_data := patch.get_ydata()).dtype.type in {np.str_, np.object_} else
                     y_data,
                 ), axis=-1)
             case Polygon():
@@ -1056,7 +1056,7 @@ class BasePlot:
         if log:
             axis.set_xscale('log')
 
-        if range_ is None and data.dtype.type != np.str_:
+        if range_ is None and data.dtype.type not in {np.str_, np.object_}:
             range_ = (np.min(data), np.max(data))
 
         if self._density and len(np.unique(data)) > 1:
@@ -1106,15 +1106,18 @@ class BasePlot:
             y_data, x_data = np.histogram(
                 data,
                 np.logspace(*np.log10(range_), self._bins) if log else self._bins,
-            ) if data.dtype.type != np.str_ else np.unique(data, return_counts=True)[::-1]
+            ) if data.dtype.type not in {np.str_, np.object_} else np.unique(
+                data,
+                return_counts=True,
+            )[::-1]
             y_data = y_data / np.max(y_data)
             self.plots[axis].append((axis.bar if orientation == 'vertical' else axis.barh)(
-                x_data[:-1] if x_data.dtype.type != np.str_ else x_data,
+                x_data[:-1] if x_data.dtype.type not in {np.str_, np.object_} else x_data,
                 y_data,
-                width=np.diff(x_data) if x_data.dtype.type != np.str_ else 0.8,
+                width=np.diff(x_data) if x_data.dtype.type not in {np.str_, np.object_} else 0.8,
                 label=label,
                 hatch=hatch,
-                align='edge' if x_data.dtype.type != np.str_ else 'center',
+                align='edge' if x_data.dtype.type not in {np.str_, np.object_} else 'center',
                 color=colour,
                 alpha=self._alpha_2d,
                 **kwargs,
@@ -1338,8 +1341,8 @@ class BasePlot:
         axis.set_ylabel('Error' if error else 'Residual', fontsize=self._major)
         self.plots[axis].append(axis.hlines(
             0,
-            xmin=x_data[0] if x_data.dtype.type == np.str_ else np.min(x_data),
-            xmax=x_data[-1] if x_data.dtype.type == np.str_ else np.max(x_data),
+            xmin=x_data[0] if x_data.dtype.type in {np.str_, np.object_} else np.min(x_data),
+            xmax=x_data[-1] if x_data.dtype.type in {np.str_, np.object_} else np.max(x_data),
             color='k',
         ))
         major_axis.tick_params(axis='y', labelsize=self._minor)
