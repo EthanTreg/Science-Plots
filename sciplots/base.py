@@ -90,7 +90,7 @@ class BasePlot:
     _cap_size: float = 5
     _alpha_2d: float = 0.4
     _alpha_line: float = 0.9
-    _marker_size: float = 100
+    _marker_size: float = 50
     _alpha_marker: float = 0.6
     _minor_tick_factor: float = 0.8
     _logger: logging.Logger = logging.getLogger(__name__)
@@ -131,30 +131,28 @@ class BasePlot:
         colours : list[str] | None, default = XKCD_COLORS
             Colours for the data
         fig_size : tuple[float, float], default = RECTANGLE
-            Size of the figure
+            Size of the figure in hundreds of pixels
 
         **kwargs
             Optional keyword arguments to pass to create_legend
         """
+        scale: float = fig_size[1] / utils.RECTANGLE[1]
         self._density: bool = density
         self._bins: int = bins
-        self._scale: float = fig_size[0] / utils.RECTANGLE[0]
         self._labels: list[str] = labels or ['']
         self._colours: list[str] = colours or list(XKCD_COLORS.values())[::-1]
-        self._fig_size: tuple[float, float] = fig_size
         self._data: Any = data
         self._legend_axis: Axes | None = None
         self._legend_kwargs: dict[str, Any] = kwargs
         self.plots: dict[Axes, list[Artist | Container]] = {}
         self.axes: dict[int | str, Axes] | ndarray | Axes
         self.subfigs: ndarray | None = None
-        self.fig: Figure = plt.figure(constrained_layout=True, figsize=self._fig_size)
+        self.fig: Figure = plt.figure(
+            constrained_layout=True,
+            figsize=(fig_size[0] / scale, fig_size[1] / scale),
+            dpi=100 * scale,
+        )
         self.legend: Legend | None = None
-
-        self._major *= self._scale
-        self._minor *= self._scale
-        self._cap_size *= self._scale
-        self._marker_size *= self._scale
 
         # Generation of the plot
         self.fig.suptitle(title, fontsize=self._major)
@@ -265,6 +263,11 @@ class BasePlot:
         axes: dict[int | str, Axes] | ndarray | Axes = utils.cast_func(
             'twinx' if x_axis else 'twiny',
             [self.axes] if isinstance(self.axes, Axes) else self.axes,
+        )
+        utils.cast_func(
+            'tick_params',
+            [axes] if isinstance(axes, Axes) else axes,
+            kwargs={'labelsize': self._minor}
         )
 
         if labels:
@@ -726,7 +729,7 @@ class BasePlot:
             fancybox=False,
             ncol=cols or np.ceil(len(self._labels) / rows),
             fontsize=self._major,
-            borderaxespad=0.2 * utils.RECTANGLE[1] / self._fig_size[1],
+            borderaxespad=0.2,
             loc=loc,
             handler_map=dict.fromkeys(
                 [list, tuple],
@@ -746,7 +749,7 @@ class BasePlot:
                 handle.set_alpha(1)
 
             if isinstance(handle, PathCollection):
-                handle.set_sizes([100 * self._scale])
+                handle.set_sizes([500])
 
             if isinstance(handle, Line2D):
                 handle.set_linewidth(2)

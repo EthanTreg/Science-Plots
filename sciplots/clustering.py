@@ -253,6 +253,7 @@ class _PlotClusters2D(BasePlotClusters):
         for marker in np.unique(markers):
             self.plots[self.axes[1, 0]].append(self.axes[1, 0].scatter(
                 *data[marker == markers].swapaxes(0, 1),
+                s=self._marker_size,
                 color=colour,
                 label=label,
                 marker=marker,
@@ -356,6 +357,7 @@ class _PlotClusters3D(BasePlotClusters):
             assert isinstance(self.axes, Axes)
             self.plots[self.axes].append(self.axes.scatter(
                 *data[marker == markers].swapaxes(0, 1),
+                s=self._marker_size,
                 color=colour,
                 label=label,
                 marker=marker,

@@ -13,7 +13,37 @@ from sciplots.base import BasePlot
 from sciplots.utils import label_change
 
 
-class PlotConfusion(BasePlot):
+class BaseGrid(BasePlot):
+    """
+    Base class to plot grids
+
+    Attributes
+    ----------
+    plots : dict[Axes, list[Artist | Container]], default = {}
+        Plot artists for each axis
+    axes : dict[int | str, Axes] | (R,C) ndarray | Axes
+        Plot axes for R rows and C columns
+    subfigs : (H,W) ndarray | None, default = None
+        Plot sub-figures for H rows and W columns
+    fig : Figure
+        Plot figure
+    legend : Legend | None, default = None
+        Plot legend
+    """
+    def create_legend(self, *_, **__) -> None:
+        """
+        Confusion matrix should not have a legend
+        """
+        return
+
+    def set_axes_pad(self, _: float = 0) -> None:
+        """
+        Confusion matrix should not have axis padding
+        """
+        return
+
+
+class PlotConfusion(BaseGrid):
     """
     Plots the confusion matrix between targets and predictions
 
@@ -93,20 +123,8 @@ class PlotConfusion(BasePlot):
         self.axes.set_xlabel('Predictions', fontsize=self._major)
         self.axes.set_ylabel('Targets', fontsize=self._major)
 
-    def create_legend(self, *_, **__) -> None:
-        """
-        Confusion matrix should not have a legend
-        """
-        return
 
-    def set_axes_pad(self, _: float = 0) -> None:
-        """
-        Confusion matrix should not have axis padding
-        """
-        return
-
-
-class PlotPearson(BasePlot):
+class PlotPearson(BaseGrid):
     """
     Plots the Pearson correlation coefficient between two sets of data.
 
@@ -148,8 +166,8 @@ class PlotPearson(BasePlot):
         **kwargs
             Optional keyword arguments to pass to BasePlot
         """
-        self._x_labels: list[str] | None = x_labels
-        self._y_labels: list[str] | None = y_labels
+        self._x_labels: list[str] = x_labels or ['']
+        self._y_labels: list[str] = y_labels or ['']
         self._data: ndarray = x_data.swapaxes(0, 1)
         self._y_data: ndarray = y_data.swapaxes(0, 1)
         super().__init__(self._data, fig_size=fig_size, **kwargs)
@@ -170,15 +188,3 @@ class PlotPearson(BasePlot):
             y_labels=self._y_labels,
             range_=(-1, 1),
         )
-
-    def create_legend(self, *_, **__) -> None:
-        """
-        Pearson matrix should not have a legend
-        """
-        return
-
-    def set_axes_pad(self, _: float = 0) -> None:
-        """
-        Pearson matrix should not have axis padding
-        """
-        return

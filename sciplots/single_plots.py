@@ -34,6 +34,7 @@ class BaseSinglePlot(BasePlot):
         Plots data with the same x-axis on a different y-axis
     """
     _alpha_line: float = 1
+    _marker_size: float = 200
 
     def __init__(
             self,
