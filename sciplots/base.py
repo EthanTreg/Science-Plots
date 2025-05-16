@@ -3,6 +3,7 @@ Base plotting class for other sciplots to build upon
 """
 import os
 import logging
+from warnings import warn
 from typing import Any, Type
 
 import numpy as np
@@ -68,7 +69,7 @@ class BasePlot:
     plot_density(colour, data, ranges, axis, label='', hatch='', order=None, confidences=None,
             **kwargs)
         Plots a density contour plot
-    plot_errors(colour, x_data, y_data, axis, label='', marker='', x_error=None, y_error=None,
+    plot_errors(colour, x_data, y_data, axis, label='', style='x', x_error=None, y_error=None,
             **kwargs)
         Plots errors on a scatter plot
     plot_grid(matrix, axis, diverge=False, precision=3, x_labels=None, y_labels=None, range_=None)
@@ -85,10 +86,12 @@ class BasePlot:
     """
     _error_region: bool = False
     _scatter_num: int = 1000
+    _pad: float = 0
     _major: float = 24
     _minor: float = 20
     _cap_size: float = 5
     _alpha_2d: float = 0.4
+    _line_width: float = 2
     _alpha_line: float = 0.9
     _marker_size: float = 50
     _alpha_marker: float = 0.6
@@ -155,15 +158,15 @@ class BasePlot:
         self.legend: Legend | None = None
 
         # Generation of the plot
+        self._process_kwargs(self._legend_kwargs)
         self.fig.suptitle(title, fontsize=self._major)
         self.fig.supxlabel(x_label, fontsize=self._major)
         self.fig.supylabel(y_label, fontsize=self._major)
-        self._process_kwargs(self._legend_kwargs)
         self._axes_init()
         self._post_init()
         self._update_plots_dict()
         self._plot_data()
-        self.set_axes_pad()
+        self.set_axes_pad(pad=self._pad)
 
         if self._labels[0]:
             self.create_legend(**self._legend_kwargs)
@@ -864,7 +867,7 @@ class BasePlot:
             y_data: ndarray,
             axis: Axes,
             label: str = '',
-            marker: str = 'x',
+            style: str = 'x',
             x_error: ndarray | None = None,
             y_error: ndarray | None = None,
             **kwargs: Any) -> None:
@@ -883,8 +886,9 @@ class BasePlot:
             Axis to plot the data
         label : str, default = ''
             Label for the data
-        marker : str, default = 'x'
-            Marker style for the data, if '', plot will be used
+        style : str, default = 'x'
+            Marker or line style for the data, can be either a marker style for scatter plots or
+            line style for line plots
         x_error : (N) ndarray | (2,N) ndarray | None, default = None
             N x-errors, can be asymmetric
         y_error : (N) ndarray | (2,N) ndarray | None, default = None
@@ -893,22 +897,32 @@ class BasePlot:
         **kwargs
             Optional keyword arguments to pass to Axes.scatter and Axes.errorbar
         """
-        if marker:
+        if 'marker' in kwargs:
+            warn(
+                'marker keyword argument is deprecated, please use style instead',
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            style = kwargs.pop('marker')
+
+        if style in utils.MARKERS:
             self.plots[axis].append(axis.scatter(
                 x_data,
                 y_data,
                 label=label,
                 color=colour,
-                marker=marker,
+                marker=style,
                 s=self._marker_size,
                 alpha=self._alpha_marker,
                 **kwargs,
             ))
-        else:
+        elif style in utils.LINE_STYLES:
             self.plots[axis].append(axis.plot(
                 x_data,
                 y_data,
+                lw=self._line_width,
                 alpha=self._alpha_line,
+                ls=style,
                 label=label,
                 color=colour,
                 **kwargs,
@@ -1075,6 +1089,7 @@ class BasePlot:
                 self.plots[axis].append(axis.plot(
                     x_data,
                     y_data,
+                    lw=self._line_width,
                     color=colour,
                     label=label,
                     **kwargs,
@@ -1092,6 +1107,7 @@ class BasePlot:
                 self.plots[axis].append(axis.plot(
                     y_data,
                     x_data,
+                    lw=self._line_width,
                     color=colour,
                     label=label,
                     **kwargs,
@@ -1338,6 +1354,7 @@ class BasePlot:
         self.plots[major_axis].append(major_axis.plot(
             x_data,
             target,
+            lw=self._line_width,
             color=target_colour or colour,
         )[0])
 

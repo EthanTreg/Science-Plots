@@ -96,13 +96,13 @@ class PlotImages(BasePlot):
             self.plots[axis].append(axis.imshow(data, cmap=cmap, vmin=range_[0], vmax=range_[1]))
             axis.tick_params(labelbottom=False, bottom=False, labelleft=False, left=False)
 
-    def create_legend(self, *_, **__) -> None:
+    def create_legend(self, *_: Any, **__: Any) -> None:
         """
         Confusion matrix should not have a legend
         """
         return
 
-    def set_axes_pad(self, _: float = 0) -> None:
+    def set_axes_pad(self, **_: Any) -> None:
         """
         Images should not have axis padding
         """

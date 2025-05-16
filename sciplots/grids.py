@@ -30,13 +30,13 @@ class BaseGrid(BasePlot):
     legend : Legend | None, default = None
         Plot legend
     """
-    def create_legend(self, *_, **__) -> None:
+    def create_legend(self, *_: Any, **__: Any) -> None:
         """
         Confusion matrix should not have a legend
         """
         return
 
-    def set_axes_pad(self, _: float = 0) -> None:
+    def set_axes_pad(self, **_: Any) -> None:
         """
         Confusion matrix should not have axis padding
         """

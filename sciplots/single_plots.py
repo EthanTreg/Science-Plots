@@ -3,6 +3,7 @@ Plots that use a single axis
 """
 import logging
 from typing import Any
+from warnings import warn
 
 import numpy as np
 from numpy import ndarray
@@ -45,7 +46,7 @@ class BaseSinglePlot(BasePlot):
             error_region: bool = False,
             x_label: str = '',
             y_label: str = '',
-            markers: str | list[str] = 'x',
+            styles: str | list[str] = 'x',
             labels: list[str] | None = None,
             x_error: list[ndarray] | ndarray | None = None,
             y_error: list[ndarray] | ndarray | None = None,
@@ -68,8 +69,9 @@ class BaseSinglePlot(BasePlot):
             X-axis label
         y_label : str, default = ''
             Y-axis label
-        markers : str | list[str], default = 'x'
-            Marker style for the data or each set of data, if '', plot will be used
+        styles : str | list[str], default = 'x'
+            Marker or line style for the data, can be either a marker style for scatter plots or
+            line style for line plots
         labels : list[str] | None, default = None
             Labels for each set of data
         x_error : list[ndarray] | ndarray | None, default = None
@@ -86,18 +88,26 @@ class BaseSinglePlot(BasePlot):
         """
         self._log_x: bool = log_x
         self._log_y: bool = log_y
-        self._marker: list[str]
+        self._styles: list[str]
         self._data: list[ndarray] | ndarray
         self._y_data: list[ndarray] | ndarray
         self._x_error: list[ndarray] | list[None] | ndarray
         self._y_error: list[ndarray] | list[None] | ndarray
         self._error_region = error_region
 
+        if 'markers' in kwargs:
+            warn(
+                'marker keyword argument is deprecated, please use style instead',
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            styles = kwargs.pop('markers')
+
         (self._data,
-         (self._markers, self._labels),
+         (self._styles, self._labels),
          (self._y_data, self._x_error, self._y_error)) = self._data_length_normalise(
             x_data,
-            lists=[markers, labels],
+            lists=[styles, labels],
             data=[y_data, x_error, y_error],
         )
 
@@ -152,21 +162,21 @@ class BaseSinglePlot(BasePlot):
         """
         label: str
         colour: str
-        marker: str
+        style: str
         x_datum: ndarray
         y_datum: ndarray
         x_error: ndarray
         y_error: ndarray
 
-        for label, colour, marker, x_datum, y_datum, x_error, y_error \
-                in zip(labels, self._colours, self._markers, x_data, y_data, x_errors, y_errors):
+        for label, colour, style, x_datum, y_datum, x_error, y_error \
+                in zip(labels, self._colours, self._styles, x_data, y_data, x_errors, y_errors):
             self.plot_errors(
                 colour,
                 x_datum,
                 y_datum,
                 axis,
                 label=label,
-                marker=marker,
+                style=style,
                 x_error=x_error,
                 y_error=y_error,
                 **kwargs,
@@ -336,7 +346,7 @@ class PlotComparison(BaseSinglePlot):
         assert isinstance(self.axes, Axes)
         label: str
         colour: str
-        marker: str
+        style: str
         pred: ndarray
         x_data: ndarray
         target: ndarray
@@ -346,10 +356,10 @@ class PlotComparison(BaseSinglePlot):
 
         self.axes.set_xscale('log' if self._log_x else 'linear')
 
-        for label, colour, marker, x_data, pred, target, x_error, y_error in zip(
+        for label, colour, style, x_data, pred, target, x_error, y_error in zip(
                 self._labels,
                 self._colours,
-                self._markers,
+                self._styles,
                 self._data,
                 self._y_data,
                 self._target,
@@ -362,7 +372,7 @@ class PlotComparison(BaseSinglePlot):
                     pred,
                     self.axes,
                     label=label,
-                    marker=marker,
+                    style=style,
                     x_error=x_error,
                     y_error=y_error,
                 )
@@ -380,7 +390,7 @@ class PlotComparison(BaseSinglePlot):
                     x_error=x_error,
                     y_error=y_error,
                     major_axis=self._major_axes,
-                    marker=marker,
+                    style=style,
                 )
 
         if self._major_axes:
@@ -455,7 +465,7 @@ class PlotPerformance(BaseSinglePlot):
             log_y=log,
             x_label=x_label,
             y_label=y_label,
-            markers='',
+            styles='-',
             labels=labels,
             **kwargs,
         )

@@ -15,7 +15,8 @@ from matplotlib.transforms import Transform
 from matplotlib.legend_handler import HandlerTuple
 from scipy.optimize import minimize
 
-MARKERS: list[str] = list(Line2D.markers.keys())
+MARKERS: list[str] = list(Line2D.markers)
+LINE_STYLES: list[str] = list(Line2D.lineStyles)
 HATCHES: list[str] = ['/', '\\', '|', '-', '+', 'x', 'o', 'O', '.', '*', '/o', '\\|', '|*', '-\\',
                       '+o', 'x*', 'o-', 'O|', 'O.', '*-']
 RECTANGLE: tuple[int, int] = (16, 9)
@@ -134,14 +135,17 @@ def cast_func(
     idxs: tuple[int, ...]
     kwarg: dict[str, Any]
     obj: object
-    value: Any
     returns: IterableLike
+    str_func: Callable
+    value: Any
 
     if isinstance(func, str):
         func_name = func
 
-        def func(x, *y, **z):
+        def str_func(x, *y, **z):
             return getattr(x, func_name)(*y, **z)
+
+        func = str_func
 
     if args is None:
         args = [()] * num
