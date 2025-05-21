@@ -267,6 +267,7 @@ class BasePlot:
             'twinx' if x_axis else 'twiny',
             [self.axes] if isinstance(self.axes, Axes) else self.axes,
         )
+        axes = axes[0] if isinstance(self.axes, Axes) else axes
         utils.cast_func(
             'tick_params',
             [axes] if isinstance(axes, Axes) else axes,
@@ -682,7 +683,8 @@ class BasePlot:
             axis: bool = False,
             rows: int = 1,
             cols: int = 0,
-            loc: str | tuple[float, float] = 'outside upper center') -> None:
+            loc: str | tuple[float, float] = 'outside upper center',
+            **kwargs: Any) -> None:
         """
         Plots the legend
 
@@ -696,6 +698,9 @@ class BasePlot:
             Number of columns for the legend, if 0, rows will be used
         loc : str | tuple[float, float], default = 'outside upper center'
             Location to place the legend
+
+        **kwargs
+            Optional keyword arguments to pass to Figure.legend
         """
         fig_size: float = float(self.fig.get_size_inches()[0]) * self.fig.dpi
         label_handles: dict[str, list[Artist] | tuple[Artist, ...]]
@@ -738,6 +743,7 @@ class BasePlot:
                 [list, tuple],
                 utils.UniqueHandlerTuple(ndivide=None),
             ),
+            **kwargs,
         )
         legend_range = np.array(self.legend.get_window_extent())[:, 0]
 

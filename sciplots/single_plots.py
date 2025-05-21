@@ -97,7 +97,7 @@ class BaseSinglePlot(BasePlot):
 
         if 'markers' in kwargs:
             warn(
-                'marker keyword argument is deprecated, please use style instead',
+                'marker keyword argument is deprecated, please use styles instead',
                 DeprecationWarning,
                 stacklevel=2,
             )
@@ -131,6 +131,8 @@ class BaseSinglePlot(BasePlot):
     def _axis_plot_data(
             self,
             labels: list[str],
+            styles: list[str],
+            colours: list[str],
             x_data: list[ndarray] | ndarray,
             y_data: list[ndarray] | list[None] | ndarray,
             x_errors: list[ndarray] | list[None] | ndarray,
@@ -169,7 +171,7 @@ class BaseSinglePlot(BasePlot):
         y_error: ndarray
 
         for label, colour, style, x_datum, y_datum, x_error, y_error \
-                in zip(labels, self._colours, self._styles, x_data, y_data, x_errors, y_errors):
+                in zip(labels, colours, styles, x_data, y_data, x_errors, y_errors):
             self.plot_errors(
                 colour,
                 x_datum,
@@ -188,6 +190,8 @@ class BaseSinglePlot(BasePlot):
         self.axes.set_yscale('log' if self._log_y else 'linear')
         self._axis_plot_data(
             self._labels,
+            self._styles,
+            self._colours,
             self._data,
             self._y_data,
             self._x_error,
@@ -201,6 +205,8 @@ class BaseSinglePlot(BasePlot):
             log_y: bool = False,
             y_label: str = '',
             labels: list[str] | None = None,
+            styles: list[str] | None = None,
+            colours: list[str] | None = None,
             x_data: list[ndarray] | ndarray | None = None,
             x_error: list[ndarray] | ndarray | None = None,
             y_error: list[ndarray] | ndarray | None = None) -> None:
@@ -217,6 +223,10 @@ class BaseSinglePlot(BasePlot):
             Y-axis label
         labels : list[str] | None, default = None
             Labels for each set of data
+        styles : list[str] | None, default = None
+            Styles for the data, if None, default styles will be used
+        colours : list[str] | None, default = None
+            Colours for the data, if None, default colours will be used
         x_data : list[ndarray] | ndarray | None, default = None
             List of B sets of x-values with ndarray shape N; or ndarray with shape (B,N), if None,
             original x-values will be used
@@ -230,17 +240,28 @@ class BaseSinglePlot(BasePlot):
             errors, (B,N) for unique errors, or (B,2,N) for unique asymmetric errors
         """
         assert isinstance(self.axes, Axes)
-        axis: Axes = self.axes.twinx()
+        axis: Axes
+
         x_data = x_data or self._data
-        self._axis_init(axis)
+        axis = self._twin_axes(labels=y_label)
         axis.set_yscale('log' if log_y else 'linear')
         axis.set_ylabel(y_label, fontsize=self._major)
-        x_data, _, (y_data, x_error, y_error, labels) = self._data_length_normalise(
+        x_data, (labels,), (y_data, x_error, y_error) = self._data_length_normalise(
             x_data,
-            data=[y_data, x_error, y_error, labels],
+            lists=[labels],
+            data=[y_data, x_error, y_error],
         )
 
-        self._axis_plot_data(labels, x_data, y_data, x_error, y_error, axis, linestyle='--')
+        self._axis_plot_data(
+            labels,
+            styles or self._styles,
+            colours or self._colours,
+            x_data,
+            y_data,
+            x_error,
+            y_error,
+            axis,
+        )
         self.set_axes_pad()
 
         if labels[0] is not None:
