@@ -33,7 +33,7 @@ class BaseParamPairs(BasePlot):
             self,
             x_data: list[ndarray] | ndarray,
             density: bool = False,
-            labels: list[str] | None = None,
+            labels: list[str] | ndarray | None = None,
             x_labels: list[str] | None = None,
             y_labels: list[str] | None = None,
             y_data: list[ndarray] | ndarray | None = None,
@@ -46,7 +46,7 @@ class BaseParamPairs(BasePlot):
             B sets of N data points for L parameters
         density : bool, default = False
             If the data should be plotted as contours and density sciplots or histograms
-        labels : list[str] | None, default = None
+        labels : list[str] | ndarray | None, default = None
             Label for each set of parameter comparisons
         x_labels : list[str] | None, default = None
             Labels for each x-axis parameter
@@ -60,7 +60,6 @@ class BaseParamPairs(BasePlot):
         **kwargs
             Optional keyword arguments to pass to BasePlot
         """
-        self._labels: list[str] = labels or ['']
         self._x_labels: list[str] | None = x_labels
         self._y_labels: list[str] | None = y_labels
         self._data: list[ndarray]
@@ -71,20 +70,15 @@ class BaseParamPairs(BasePlot):
 
         self._data, self._x_ranges = self._preprocessing(x_data)
         self._y_data, self._y_ranges = self._preprocessing(x_data if y_data is None else y_data)
-
-        if len(self._data) == 1:
-            self._data *= len(self._y_data)
-
-        if len(self._y_data) == 1:
-            self._y_data *= len(self._data)
-
-        if len(self._labels) == 1:
-            self._labels *= len(self._data)
+        self._data, _, (self._y_data,) = self._data_length_normalise(
+            self._data,
+            data=[self._y_data],
+        )
 
         super().__init__(
             self._data,
             density=density,
-            labels=self._labels,
+            labels=labels,
             fig_size=fig_size,
             **kwargs,
         )
@@ -147,7 +141,7 @@ class PlotParamPairs(BaseParamPairs):
             self,
             data: list[ndarray] | ndarray,
             density: bool = False,
-            labels: list[str] | None = None,
+            labels: list[str] | ndarray | None = None,
             axes_labels: list[str] | None = None,
             fig_size: tuple[int, int] = utils.HI_RES,
             **kwargs: Any) -> None:
@@ -158,7 +152,7 @@ class PlotParamPairs(BaseParamPairs):
             B sets of N data points for L parameters
         density : bool, default = False
             If the data should be plotted as contours and density sciplots or histograms
-        labels : list[str] | None, default = None
+        labels : list[str] | ndarray | None, default = None
             Labels for each set of parameter comparisons
         axes_labels : list[str] | None, default = None
             Labels for the axes
@@ -215,7 +209,7 @@ class PlotParamPairComparison(BaseParamPairs):
             x_data: list[ndarray] | ndarray,
             y_data: list[ndarray] | ndarray,
             density: bool = False,
-            labels: list[str] | None = None,
+            labels: list[str] | ndarray | None = None,
             x_labels: list[str] | None = None,
             y_labels: list[str] | None = None,
             fig_size: tuple[int, int] = utils.HI_RES,
@@ -229,7 +223,7 @@ class PlotParamPairComparison(BaseParamPairs):
             B sets of N data points for L parameters to compare against x_data
         density : bool, default = False
             If the data should be plotted as contours and density sciplots or histograms
-        labels : list[str] | None, default = None
+        labels : list[str] | ndarray | None, default = None
             Labels for each set of parameter comparisons
         fig_size : tuple[int, int], default = HI_RES
             Size of the figure

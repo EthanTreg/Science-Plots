@@ -38,9 +38,8 @@ class BasePlotClusters(BasePlot):
             norm: bool = False,
             density: bool = False,
             bins: int = 200,
-            labels: list[str] | None = None,
-            colours: list[str] | None = None,
-            hatches: list[str] | None = None,
+            labels: list[str] | ndarray | None = None,
+            hatches: list[str] | ndarray | None = None,
             fig_size: tuple[int, int] = utils.RECTANGLE,
             preds: ndarray | None = None,
             **kwargs: Any) -> None:
@@ -57,11 +56,9 @@ class BasePlotClusters(BasePlot):
             If data should be plotted with density contours and histograms smoothed out
         bins : int, default = 200
             Number of bins for the histogram or number of steps in the contour interpolation
-        labels : list[str] | None, default = None
+        labels : list[str] | ndarray | None, default = None
             Labels for each class in targets
-        colours : list[str] | None, default = XKCD_COLORS
-            Colours for each class in targets
-        hatches : list[str] | None, default = None
+        hatches : list[str] | ndarray | None, default = None
             Hatches for each class in targets
         fig_size : tuple[int, int], default = RECTANGLE
             Size of the figure
@@ -75,8 +72,9 @@ class BasePlotClusters(BasePlot):
         pad: float = 0.05
         marker: str
         self._norm: bool = norm
-        self._labels: list[str] = labels or [''] * len(np.unique(targets))
-        self._hatches: list[str] = hatches or [''] * len(np.unique(targets))
+        self._labels: list[str] = labels if labels is not None else [''] * len(np.unique(targets))
+        self._hatches: list[str] = hatches if hatches is not None else \
+            [''] * len(np.unique(targets))
         self._data: ndarray
         self._targets: ndarray = targets
         self._markers: ndarray = np.array([utils.MARKERS[0]] * len(data))
@@ -95,7 +93,6 @@ class BasePlotClusters(BasePlot):
             density=density,
             bins=bins,
             labels=self._labels,
-            colours=colours,
             fig_size=fig_size,
             **kwargs,
         )
@@ -287,9 +284,8 @@ class _PlotClusters3D(BasePlotClusters):
             targets: ndarray,
             density: bool = False,
             bins: int = 200,
-            labels: list[str] | None = None,
-            colours: list[str] | None = None,
-            hatches: list[str] | None = None,
+            labels: list[str] | ndarray | None = None,
+            hatches: list[str] | ndarray | None = None,
             fig_size: tuple[int, int] = utils.SQUARE,
             preds: ndarray | None = None,
             **kwargs: Any) -> None:
@@ -306,11 +302,9 @@ class _PlotClusters3D(BasePlotClusters):
             If data should be plotted with density contours and histograms smoothed out
         bins : int, default = 200
             Number of bins for the histogram or number of steps in the contour interpolation
-        labels : list[str] | None, default = None
+        labels : list[str] | ndarray | None, default = None
             Labels for each class in targets
-        colours : list[str] | None, default = XKCD_COLORS
-            Colours for each class in targets
-        hatches : list[str] | None, default = None
+        hatches : list[str] | ndarray | None, default = None
             Hatches for each class in targets
         fig_size : tuple[int, int], default = SQUARE
             Size of the figure
@@ -326,7 +320,6 @@ class _PlotClusters3D(BasePlotClusters):
             density=density,
             bins=bins,
             labels=labels,
-            colours=colours,
             hatches=hatches,
             preds=preds,
             fig_size=fig_size,
@@ -402,9 +395,8 @@ class _PlotClustersND(BasePlotClusters):
             targets: ndarray,
             density: bool = False,
             bins: int = 200,
-            labels: list[str] | None = None,
-            colours: list[str] | None = None,
-            hatches: list[str] | None = None,
+            labels: list[str] | ndarray | None = None,
+            hatches: list[str] | ndarray | None = None,
             fig_size: tuple[int, int] = utils.HI_RES,
             preds: ndarray | None = None,
             **kwargs: Any) -> None:
@@ -421,11 +413,9 @@ class _PlotClustersND(BasePlotClusters):
             If data should be plotted with density contours and histograms smoothed out
         bins : int, default = 200
             Number of bins for the histogram or number of steps in the contour interpolation
-        labels : list[str] | None, default = None
+        labels : list[str] | ndarray | None, default = None
             Labels for each class in targets
-        colours : list[str] | None, default = XKCD_COLORS
-            Colours for each class in targets
-        hatches : list[str] | None, default = None
+        hatches : list[str] | ndarray | None, default = None
             Hatches for each class in targets
         fig_size : tuple[int, int], default = HI_RES
             Size of the figure
@@ -441,7 +431,6 @@ class _PlotClustersND(BasePlotClusters):
             density=density,
             bins=bins,
             labels=labels,
-            colours=colours,
             hatches=hatches,
             preds=preds,
             fig_size=fig_size,
@@ -482,9 +471,8 @@ class PlotClusters:
             density: bool = False,
             plot_3d: bool = False,
             bins: int = 200,
-            labels: list[str] | None = None,
-            colours: list[str] | None = None,
-            hatches: list[str] | None = None,
+            labels: list[str] | ndarray | None = None,
+            hatches: list[str] | ndarray | None = None,
             preds: ndarray | None = None,
             **kwargs: Any) -> BasePlotClusters:
         """
@@ -502,11 +490,9 @@ class PlotClusters:
             If 3D data should be plotted as a 3D plot or as a pair plot
         bins : int, default = 200
             Number of bins for the histogram or number of steps in the contour interpolation
-        labels : list[str] | None, default = None
+        labels : list[str] | ndarray | None, default = None
             Labels for each class in targets
-        colours : list[str] | None, default = XKCD_COLORS
-            Colours for each class in targets
-        hatches : list[str] | None, default = None
+        hatches : list[str] | ndarray | None, default = None
             Hatches for each class in targets
         preds : ndarray | None, default = None
             Predictions to assign markers to each predicted class
@@ -522,7 +508,6 @@ class PlotClusters:
                 density=density,
                 bins=bins,
                 labels=labels,
-                colours=colours,
                 hatches=hatches,
                 preds=preds,
                 **kwargs,
@@ -535,7 +520,6 @@ class PlotClusters:
                 density=density,
                 bins=bins,
                 labels=labels,
-                colours=colours,
                 hatches=hatches,
                 preds=preds,
                 **kwargs,
@@ -547,7 +531,6 @@ class PlotClusters:
                 density=density,
                 bins=bins,
                 labels=labels,
-                colours=colours,
                 hatches=hatches,
                 preds=preds,
                 **kwargs,
@@ -559,7 +542,6 @@ class PlotClusters:
             density=density,
             bins=bins,
             labels=labels,
-            colours=colours,
             hatches=hatches,
             preds=preds,
             **kwargs,

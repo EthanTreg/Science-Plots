@@ -92,6 +92,7 @@ class BasePlot:
     _cap_size: float = 5
     _alpha_2d: float = 0.4
     _line_width: float = 2
+    _eline_width: float = 2
     _alpha_line: float = 0.9
     _marker_size: float = 50
     _alpha_marker: float = 0.6
@@ -106,8 +107,8 @@ class BasePlot:
             title: str = '',
             x_label: str = '',
             y_label: str = '',
-            labels: list[str] | None = None,
-            colours: list[str] | None = None,
+            labels: list[str] | ndarray | None = None,
+            colours: list[str] | ndarray | None = None,
             fig_size: tuple[float, float] = utils.RECTANGLE,
             **kwargs: Any) -> None:
         """
@@ -129,9 +130,9 @@ class BasePlot:
             X-label of the plot
         y_label : str, default = ''
             Y-label of the plot
-        labels : list[str] | None, default = None
+        labels : list[str] | ndarray | None, default = None
             Labels for the data to plot the legend
-        colours : list[str] | None, default = XKCD_COLORS
+        colours : list[str] | ndarray | None, default = XKCD_COLORS
             Colours for the data
         fig_size : tuple[float, float], default = RECTANGLE
             Size of the figure in hundreds of pixels
@@ -142,8 +143,9 @@ class BasePlot:
         scale: float = fig_size[1] / utils.RECTANGLE[1]
         self._density: bool = density
         self._bins: int = bins
-        self._labels: list[str] = labels or ['']
-        self._colours: list[str] = colours or list(XKCD_COLORS.values())[::-1]
+        self._labels: list[str] = labels.tolist() if isinstance(labels, ndarray) else labels or ['']
+        self._colours: list[str] = colours.tolist() if isinstance(colours, ndarray) else \
+            colours or list(XKCD_COLORS.values())[::-1]
         self._data: Any = data
         self._legend_axis: Axes | None = None
         self._legend_kwargs: dict[str, Any] = kwargs
@@ -369,12 +371,24 @@ class BasePlot:
         """
         key: str
         value: Any
+        class_kwargs: set[str] = {
+            'error_region',
+            'scatter_num,' 
+            'pad',
+            'major',
+            'minor',
+            'cap_size',
+            'alpha_2d',
+            'line_width',
+            'eline_width',
+            'alpha_line',
+            'marker_size',
+            'alpha_marker',
+            'minor_tick_factor',
+        }
 
         for key, value in list(kwargs.items()):
-            if hasattr(self, key):
-                setattr(self, key, value)
-                del kwargs[key]
-            elif hasattr(self, f'_{key}'):
+            if key in class_kwargs and hasattr(self, f'_{key}'):
                 setattr(self, f'_{key}', value)
                 del kwargs[key]
 
@@ -951,6 +965,8 @@ class BasePlot:
                 xerr=x_error,
                 capsize=self._cap_size,
                 alpha=self._alpha_marker,
+                capthick=self._eline_width,
+                elinewidth=self._eline_width,
                 label=label,
                 color=colour,
                 linestyle='',
