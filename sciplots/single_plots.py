@@ -46,8 +46,8 @@ class BaseSinglePlot(BasePlot):
             error_region: bool = False,
             x_label: str = '',
             y_label: str = '',
-            styles: str | list[str] = 'x',
-            labels: list[str] | None = None,
+            styles: str | list[str] | ndarray = 'x',
+            labels: list[str] | ndarray | None = None,
             x_error: list[ndarray] | ndarray | None = None,
             y_error: list[ndarray] | ndarray | None = None,
             **kwargs: Any) -> None:
@@ -69,10 +69,10 @@ class BaseSinglePlot(BasePlot):
             X-axis label
         y_label : str, default = ''
             Y-axis label
-        styles : str | list[str], default = 'x'
+        styles : str | list[str] | ndarray, default = 'x'
             Marker or line style for the data, can be either a marker style for scatter plots or
             line style for line plots
-        labels : list[str] | None, default = None
+        labels : list[str] | ndarray | None, default = None
             Labels for each set of data
         x_error : list[ndarray] | ndarray | None, default = None
             List of B sets of x-errors with ndarray shape N or shape (2,N) for asymmetric errors; or
@@ -107,7 +107,10 @@ class BaseSinglePlot(BasePlot):
          (self._styles, self._labels),
          (self._y_data, self._x_error, self._y_error)) = self._data_length_normalise(
             x_data,
-            lists=[styles, labels],
+            lists=[
+                styles.tolist() if isinstance(styles, ndarray) else styles,
+                labels.tolist() if isinstance(labels, ndarray) else labels,
+            ],
             data=[y_data, x_error, y_error],
         )
 
@@ -296,7 +299,7 @@ class PlotComparison(BaseSinglePlot):
             x_label: str = '',
             y_label: str = '',
             residual: str | None = None,
-            labels: list[str] | None = None,
+            labels: list[str] | ndarray | None = None,
             target: list[ndarray] | ndarray | None = None,
             x_error: list[ndarray] | ndarray | None = None,
             y_error: list[ndarray] | ndarray | None = None,
@@ -321,7 +324,7 @@ class PlotComparison(BaseSinglePlot):
             Y-axis label
         residual : {None, 'residual', 'error'}, default = None
             If the residuals should be plotted as residuals or errors
-        labels : list[str] | None, default = None
+        labels : list[str] | ndarray | None, default = None
             Labels for each set of data
         target : [list[(N) ndarray] | (N) ndarray | (B,N) ndarray | None, default = None
             B sets of N target values, if None, target is the x-values
@@ -457,7 +460,7 @@ class PlotPerformance(BaseSinglePlot):
             log: bool = True,
             x_label: str = '',
             y_label: str = '',
-            labels: list[str] | None = None,
+            labels: list[str] | ndarray | None = None,
             x_data: list[float] | list[ndarray] | ndarray | None = None,
             **kwargs: Any) -> None:
         """
@@ -471,7 +474,7 @@ class PlotPerformance(BaseSinglePlot):
             X-axis label
         y_label : str, default = ''
             Y-axis label
-        labels : list[str] | None, default = None
+        labels : list[str] | ndarray | None, default = None
             Labels for each set of performance metrics
         x_data : list[ndarray] | ndarray | None, default = None
             List of B sets of x-values with ndarray shape N; or ndarray with shape (B,N)

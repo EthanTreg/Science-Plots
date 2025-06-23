@@ -49,6 +49,9 @@ class BasePlot:
         Plot sub-figures for H rows and W columns
     fig : Figure
         Plot figure
+    legend_axis : Axes | None, default = None
+        Axis to plot the legend on if argument axis is True in create_legend method, if None and
+        axis argument is True, first axis will be used
     legend : Legend | None, default = None
         Plot legend
 
@@ -147,7 +150,6 @@ class BasePlot:
         self._colours: list[str] = colours.tolist() if isinstance(colours, ndarray) else \
             colours or list(XKCD_COLORS.values())[::-1]
         self._data: Any = data
-        self._legend_axis: Axes | None = None
         self._legend_kwargs: dict[str, Any] = kwargs
         self.plots: dict[Axes, list[Artist | Container]] = {}
         self.axes: dict[int | str, Axes] | ndarray | Axes
@@ -157,6 +159,7 @@ class BasePlot:
             figsize=(fig_size[0] / scale, fig_size[1] / scale),
             dpi=100 * scale,
         )
+        self.legend_axis: Axes | None = None
         self.legend: Legend | None = None
 
         # Generation of the plot
@@ -728,7 +731,7 @@ class BasePlot:
         label_handles = self._label_handles()
 
         # Formatting of the legend
-        if axis and self._legend_axis is None:
+        if axis and self.legend_axis is None:
             match self.axes:
                 case ndarray():
                     artist = self.axes.flatten()[0]
@@ -740,7 +743,7 @@ class BasePlot:
                     raise ValueError(f'Unknown axes attribute type ({type(self.axes)}), must be'
                                      f'either ndarray, dict, or Axes')
         elif axis:
-            artist = self._legend_axis
+            artist = self.legend_axis
         else:
             artist = self.fig
 

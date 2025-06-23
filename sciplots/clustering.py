@@ -38,6 +38,8 @@ class BasePlotClusters(BasePlot):
             norm: bool = False,
             density: bool = False,
             bins: int = 200,
+            x_label: str | list[str] = '',
+            y_label: str | list[str] = '',
             labels: list[str] | ndarray | None = None,
             hatches: list[str] | ndarray | None = None,
             fig_size: tuple[int, int] = utils.RECTANGLE,
@@ -56,6 +58,10 @@ class BasePlotClusters(BasePlot):
             If data should be plotted with density contours and histograms smoothed out
         bins : int, default = 200
             Number of bins for the histogram or number of steps in the contour interpolation
+        x_label : str | list[str], default = ''
+            Labels for each x-axis, if length is one, then global x-axis will be set
+        y_label : str | list[str], default = ''
+            Labels for each y-axis, if length is one, then global y-axis will be set
         labels : list[str] | ndarray | None, default = None
             Labels for each class in targets
         hatches : list[str] | ndarray | None, default = None
@@ -72,6 +78,8 @@ class BasePlotClusters(BasePlot):
         pad: float = 0.05
         marker: str
         self._norm: bool = norm
+        self._x_labels: str | list[str] = x_label
+        self._y_labels: str | list[str] = y_label
         self._labels: list[str] = labels if labels is not None else [''] * len(np.unique(targets))
         self._hatches: list[str] = hatches if hatches is not None else \
             [''] * len(np.unique(targets))
@@ -92,6 +100,8 @@ class BasePlotClusters(BasePlot):
             data,
             density=density,
             bins=bins,
+            x_label=self._x_labels if isinstance(self._x_labels, str) else '',
+            y_label=self._y_labels if isinstance(self._y_labels, str) else '',
             labels=self._labels,
             fig_size=fig_size,
             **kwargs,
@@ -207,6 +217,9 @@ class _PlotClusters2D(BasePlotClusters):
     def _axes_init(self) -> None:
         self.subplots(
             (2, 2),
+            borders=True,
+            x_labels=self._x_labels if isinstance(self._x_labels, list) else None,
+            y_labels=self._y_labels if isinstance(self._y_labels, list) else None,
             sharex='col',
             sharey='row',
             width_ratios=[3, 1],
@@ -438,7 +451,13 @@ class _PlotClustersND(BasePlotClusters):
         )
 
     def _axes_init(self) -> None:
-        self.subplots((self._data.shape[1],) * 2, sharex='col')
+        self.subplots(
+            (self._data.shape[1],) * 2,
+            borders=True,
+            x_labels=self._x_labels if isinstance(self._x_labels, list) else None,
+            y_labels=self._y_labels if isinstance(self._y_labels, list) else None,
+            sharex='col',
+        )
 
     def _plot_clusters(
             self,
@@ -471,6 +490,8 @@ class PlotClusters:
             density: bool = False,
             plot_3d: bool = False,
             bins: int = 200,
+            x_label: str | list[str] = '',
+            y_label: str | list[str] = '',
             labels: list[str] | ndarray | None = None,
             hatches: list[str] | ndarray | None = None,
             preds: ndarray | None = None,
@@ -490,6 +511,10 @@ class PlotClusters:
             If 3D data should be plotted as a 3D plot or as a pair plot
         bins : int, default = 200
             Number of bins for the histogram or number of steps in the contour interpolation
+        x_label : str | list[str], default = ''
+            Labels for each x-axis, if length is one, then global x-axis will be set
+        y_label : str | list[str], default = ''
+            Labels for each y-axis, if length is one, then global y-axis will be set
         labels : list[str] | ndarray | None, default = None
             Labels for each class in targets
         hatches : list[str] | ndarray | None, default = None
@@ -507,6 +532,8 @@ class PlotClusters:
                 norm=norm,
                 density=density,
                 bins=bins,
+                x_label=x_label,
+                y_label=y_label,
                 labels=labels,
                 hatches=hatches,
                 preds=preds,
@@ -519,6 +546,8 @@ class PlotClusters:
                 norm=norm,
                 density=density,
                 bins=bins,
+                x_label=x_label,
+                y_label=y_label,
                 labels=labels,
                 hatches=hatches,
                 preds=preds,
@@ -530,6 +559,8 @@ class PlotClusters:
                 targets,
                 density=density,
                 bins=bins,
+                x_label=x_label,
+                y_label=y_label,
                 labels=labels,
                 hatches=hatches,
                 preds=preds,
@@ -541,6 +572,8 @@ class PlotClusters:
             norm=norm,
             density=density,
             bins=bins,
+            x_label=x_label,
+            y_label=y_label,
             labels=labels,
             hatches=hatches,
             preds=preds,

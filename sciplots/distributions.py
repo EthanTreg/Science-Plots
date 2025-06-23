@@ -42,11 +42,11 @@ class BaseDistribution(BasePlot):
             density: bool = False,
             log: bool | list[bool] = False,
             bins: int = 100,
-            labels: str | list[str] = '',
-            hatches: str | list[str] = '',
-            titles: list[str] | None = None,
-            x_labels: list[str] | None = None,
-            y_labels: list[str] | None = None,
+            labels: str | list[str] | ndarray = '',
+            hatches: str | list[str] | ndarray = '',
+            titles: list[str] | ndarray | None = None,
+            x_labels: list[str] | ndarray | None = None,
+            y_labels: list[str] | ndarray | None = None,
             **kwargs: Any) -> None:
         """
         Parameters
@@ -65,15 +65,15 @@ class BaseDistribution(BasePlot):
             If the x-axis should be logarithmic
         bins : int, default = 100
             Number of bins for histograms or density interpolation
-        labels : str | list[str], default = ''
+        labels : str | list[str] | ndarray, default = ''
             Labels for the data
-        hatches : str | list[str], default = ''
+        hatches : str | list[str] | ndarray, default = ''
             Hatches for the data
-        titles : list[str] | None, default = None
+        titles : list[str] | ndarray | None, default = None
             Titles for the distributions
-        x_labels : list[str] | None, default = None
+        x_labels : list[str] | ndarray | None, default = None
             X-axis label(s)
-        y_labels : list[str] | None, default = None
+        y_labels : list[str] | ndarray | None, default = None
             Y-axis label(s)
 
         **kwargs
@@ -94,10 +94,14 @@ class BaseDistribution(BasePlot):
             self._titles,
             self._x_labels,
             self._y_labels,
-        ), _ = self._data_length_normalise(
-            self._data,
-            lists=[log, labels, hatches, titles, x_labels, y_labels],
-        )
+        ), _ = self._data_length_normalise(self._data, lists=[
+            log,
+            labels.tolist() if isinstance(labels, ndarray) else labels,
+            hatches.tolist() if isinstance(hatches, ndarray) else hatches,
+            titles.tolist() if isinstance(titles, ndarray) else titles,
+            x_labels.tolist() if isinstance(x_labels, ndarray) else x_labels,
+            y_labels.tolist() if isinstance(y_labels, ndarray) else y_labels,
+        ])
         self._norm = True if any(datum.size == 1 for datum in self._data) else norm
 
         super().__init__(
@@ -243,8 +247,8 @@ class PlotDistribution(BaseDistribution):
             bins: int = 100,
             x_labels: str = '',
             y_labels: str = '',
-            hatches: str | list[str] = '',
-            labels: list[str] | None = None,
+            labels: str | list[str] | ndarray = '',
+            hatches: str | list[str] | ndarray = '',
             **kwargs: Any) -> None:
         """
         Parameters
@@ -265,10 +269,10 @@ class PlotDistribution(BaseDistribution):
             X-axis label
         y_labels : str, default = ''
             Y-axis label
-        hatches : str | list[str], default = ''
-            Hatches for the data
-        labels : list[str] | None, default = None
+        labels : str | list[str] | ndarray, default = ''
             Labels for the data
+        hatches : str | list[str] | ndarray, default = ''
+            Hatches for the data
 
         **kwargs
             Optional keyword arguments to pass to BasePlot
@@ -281,7 +285,7 @@ class PlotDistribution(BaseDistribution):
             density=density,
             log=log,
             bins=bins,
-            labels=labels or '',
+            labels=labels,
             hatches=hatches,
             titles=None,
             x_labels=[x_labels],
@@ -367,10 +371,10 @@ class PlotDistributions(BaseDistribution):
             log: bool | list[bool] = False,
             bins: int = 100,
             label: str = '',
-            hatches: str = '',
-            x_labels: str | list[str] = '',
-            y_labels: str | list[str] = '',
-            titles: list[str] | None = None,
+            hatches: str | list[str] | ndarray = '',
+            x_labels: str | list[str] | ndarray = '',
+            y_labels: str | list[str] | ndarray = '',
+            titles: list[str] | ndarray | None = None,
             **kwargs: Any) -> None:
         """
         Parameters
@@ -389,13 +393,13 @@ class PlotDistributions(BaseDistribution):
             Number of bins for histograms or density interpolation
         label : str, default = ''
             Label for the data
-        hatches : str, default = ''
-            Hatch for the data
-        x_labels : str | list[str], default = ''
+        hatches : str | list[str] | ndarray, default = ''
+            Hatches for the data
+        x_labels : str | list[str] | ndarray, default = ''
             X-axis label(s)
-        y_labels : str | list[str], default = ''
+        y_labels : str | list[str] | ndarray, default = ''
             Y-axis label(s)
-        titles : list[str] | None, default = None
+        titles : list[str] | ndarray | None, default = None
             Titles for the distributions
 
         **kwargs
