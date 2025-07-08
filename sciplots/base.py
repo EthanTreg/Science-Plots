@@ -100,6 +100,14 @@ class BasePlot:
     _marker_size: float = 50
     _alpha_marker: float = 0.6
     _minor_tick_factor: float = 0.8
+    _handle_priority: list[Type[Artist]] = [
+        FillBetweenPolyCollection,
+        BarContainer,
+        Polygon,
+        Line2D,
+        LineCollection,
+        PathCollection,
+    ]
     _logger: logging.Logger = logging.getLogger(__name__)
 
     def __init__(
@@ -488,14 +496,6 @@ class BasePlot:
         label: str
         labels: list[str]
         handles: list[Artist] = []
-        plot_types: list[Type[Artist]] = [
-            PathCollection,
-            Line2D,
-            Polygon,
-            FillBetweenPolyCollection,
-            BarContainer,
-            LineCollection,
-        ]
         label_handles: dict[str, list[Artist] | tuple[Artist, ...]] = {}
         plot_type: Type[Artist]
         idxs: ndarray
@@ -545,7 +545,7 @@ class BasePlot:
 
         # If any label doesn't have a handle, get the first artist type depending on priority
         for label, handles in label_handles.items():
-            for plot_type in plot_types:
+            for plot_type in self._handle_priority:
                 if len(handles) != 0:
                     break
 
@@ -701,6 +701,7 @@ class BasePlot:
             rows: int = 1,
             cols: int = 0,
             loc: str | tuple[float, float] = 'outside upper center',
+            label_permute: list[int] | slice = slice(None),
             **kwargs: Any) -> None:
         """
         Plots the legend
@@ -715,6 +716,8 @@ class BasePlot:
             Number of columns for the legend, if 0, rows will be used
         loc : str | tuple[float, float], default = 'outside upper center'
             Location to place the legend
+        label_permute : list[int] | slice, default = slice(None)
+            Permutation of the legend labels
 
         **kwargs
             Optional keyword arguments to pass to Figure.legend
@@ -749,15 +752,15 @@ class BasePlot:
 
         # Create legend
         self.legend = artist.legend(
-            label_handles.values(),
-            tuple(label_handles.keys()),
+            np.array(list(label_handles.values()))[label_permute],
+            np.array(list(label_handles.keys()))[label_permute],
             fancybox=False,
             ncol=cols or np.ceil(len(self._labels) / rows),
             fontsize=self._major,
             borderaxespad=0.2,
             loc=loc,
             handler_map=dict.fromkeys(
-                [list, tuple],
+                [list, tuple, ndarray],
                 utils.UniqueHandlerTuple(ndivide=None),
             ),
             **kwargs,
@@ -765,20 +768,22 @@ class BasePlot:
         legend_range = np.array(self.legend.get_window_extent())[:, 0]
 
         # Recreate legend if it overflows the figure with more rows
-        if legend_range[0] < 0:
-            rows = np.ceil((legend_range[1] - legend_range[0]) * rows / fig_size)
-            self.create_legend(axis=axis, rows=rows, loc=loc)
+        if legend_range[1] - legend_range[0] > fig_size:
+            rows = np.ceil((legend_range[1] - legend_range[0]) * (
+                np.ceil(len(self._labels) / cols) if cols else rows
+            ) / fig_size)
+            self.create_legend(axis=axis, rows=rows, loc=loc, label_permute=label_permute, **kwargs)
 
         # Update handles to remove transparency if there isn't any hatching and set point size
         for handle in self.legend.legend_handles:
-            if not hasattr(handle, 'get_hatch') or handle.get_hatch() is None:
+            if not hasattr(handle, 'get_hatch'):
                 handle.set_alpha(1)
 
             if isinstance(handle, PathCollection):
                 handle.set_sizes([500])
 
             if isinstance(handle, Line2D):
-                handle.set_linewidth(2)
+                handle.set_linewidth(4)
 
     def set_axes_pad(self, pad: float = 0) -> None:
         """
@@ -880,7 +885,13 @@ class BasePlot:
         ))
         self.plots[axis][-1]._hatch_color = colors.to_rgba(colour, self._alpha_line)
         self.plots[axis][-1].set_label(label)
-        self.plots[axis].append(axis.contour(*contour, levels, colors=colour, **kwargs))
+        self.plots[axis].append(axis.contour(
+            *contour,
+            levels,
+            colors=colour,
+            linewidths=self._line_width,
+            **kwargs,
+        ))
         self.plots[axis][-1].set_label(label)
 
     def plot_errors(
@@ -1086,7 +1097,6 @@ class BasePlot:
             Optional keyword arguments that get passed to Axes.plot and Axes.fill_between if
             self._density is True, else to Axes.hist
         """
-        edge_alpha: float = 0.8
         x_data: ndarray
         y_data: ndarray
         kernel: gaussian_kde
@@ -1111,17 +1121,10 @@ class BasePlot:
                 y_data /= np.max(y_data)
 
             if orientation == 'vertical':
-                self.plots[axis].append(axis.plot(
-                    x_data,
-                    y_data,
-                    lw=self._line_width,
-                    color=colour,
-                    label=label,
-                    **kwargs,
-                )[0])
                 self.plots[axis].append(axis.fill_between(
                     x_data,
                     y_data,
+                    lw=self._line_width,
                     hatch=hatch,
                     label=label,
                     facecolor=(colour, self._alpha_2d),
@@ -1129,17 +1132,10 @@ class BasePlot:
                     **kwargs,
                 ))
             else:
-                self.plots[axis].append(axis.plot(
-                    y_data,
-                    x_data,
-                    lw=self._line_width,
-                    color=colour,
-                    label=label,
-                    **kwargs,
-                )[0])
                 self.plots[axis].append(axis.fill_betweenx(
                     x_data,
                     y_data,
+                    lw=self._line_width,
                     hatch=hatch,
                     label=label,
                     facecolor=(colour, self._alpha_2d),
@@ -1169,29 +1165,29 @@ class BasePlot:
         else:
             self.plots[axis].append(axis.hist(
                 data,
-                lw=2,
                 bins=np.logspace(*np.log10(range_), self._bins) if log else self._bins,
                 hatch=hatch,
                 label=label,
                 histtype='step',
-                alpha=edge_alpha,
+                alpha=self._alpha_line,
+                lw=self._line_width,
                 orientation=orientation,
                 facecolor=(colour, self._alpha_2d),
-                edgecolor=(colour, edge_alpha),
+                edgecolor=(colour, self._alpha_line),
                 range=range_,
                 **kwargs,
             )[-1][0])
             self.plots[axis].append(axis.hist(
                 data,
-                lw=2,
                 bins=np.logspace(*np.log10(range_), self._bins) if log else self._bins,
                 hatch=hatch,
                 label=label,
                 histtype='stepfilled',
                 alpha=self._alpha_2d,
+                lw=self._line_width,
                 orientation=orientation,
                 facecolor=(colour, self._alpha_2d),
-                edgecolor=(colour, edge_alpha),
+                edgecolor=(colour, self._alpha_line),
                 range=range_,
                 **kwargs,
             )[-1][0])

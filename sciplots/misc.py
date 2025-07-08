@@ -155,8 +155,10 @@ class PlotSaliency(PlotImages):
             titles=['Input'] + [f'Dim {i + 1}' for i in range(len(saliency))],
             ranges=np.concat((
                 [[0, np.max(data)]],
-                np.min(saliency, axis=(1, 2)),
-                np.max(saliency, axis=(1, 2)),
+                np.stack((
+                    np.min(saliency, axis=(1, 2)),
+                    np.max(saliency, axis=(1, 2)),
+                ), axis=-1),
             )),
             fig_size=fig_size,
             **kwargs,
