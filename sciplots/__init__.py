@@ -4,7 +4,7 @@ Package information and creates the logger
 import logging
 
 
-__version__ = '1.0.9'
+__version__ = '1.0.10'
 __author__ = 'Ethan Tregidga'
 logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.WARNING)
 

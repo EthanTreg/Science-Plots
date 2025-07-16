@@ -3,7 +3,6 @@ Plots that use a single axis
 """
 import logging
 from typing import Any
-from warnings import warn
 
 import numpy as np
 from numpy import ndarray
@@ -94,15 +93,6 @@ class BaseSinglePlot(BasePlot):
         self._x_error: list[ndarray] | list[None] | ndarray
         self._y_error: list[ndarray] | list[None] | ndarray
         self._error_region = error_region
-
-        if 'markers' in kwargs:
-            warn(
-                'marker keyword argument is deprecated, please use styles instead',
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            styles = kwargs.pop('markers')
-
         (self._data,
          (self._styles, self._labels),
          (self._y_data, self._x_error, self._y_error)) = self._data_length_normalise(
@@ -242,19 +232,17 @@ class BaseSinglePlot(BasePlot):
             ndarray with shape (N) if all input data has the same error, (2,N) for asymmetric
             errors, (B,N) for unique errors, or (B,2,N) for unique asymmetric errors
         """
-        assert isinstance(self.axes, Axes)
         axis: Axes
-
-        x_data = x_data or self._data
+        x_data = self._data if x_data is None else x_data
         axis = self._twin_axes(labels=y_label)
         axis.set_yscale('log' if log_y else 'linear')
         axis.set_ylabel(y_label, fontsize=self._major)
+
         x_data, (labels,), (y_data, x_error, y_error) = self._data_length_normalise(
             x_data,
             lists=[labels],
             data=[y_data, x_error, y_error],
         )
-
         self._axis_plot_data(
             labels,
             styles or self._styles,

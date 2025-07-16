@@ -484,9 +484,15 @@ class BasePlot:
             return ranges
         return None
 
-    def _label_handles(self) -> dict[str, list[Artist]]:
+    def _label_handles(self, markers: bool = False) -> dict[str, list[Artist]]:
         """
         Gets the labels and handles for the legend
+
+        Parameters
+        ----------
+        markers : bool, default = False
+            If markers should be included in the legend, allows multiple labels with markers as
+            unique markers are not identifiable
 
         Returns
         -------
@@ -518,8 +524,13 @@ class BasePlot:
             match plot_type:
                 case Line2D() | LineCollection():
                     handles += self._unique_objects(lambda x: x.get_linestyle(), plots[idxs])
-                case Polygon() | FillBetweenPolyCollection() | PathCollection() | QuadContourSet():
+                case Polygon() | FillBetweenPolyCollection() | QuadContourSet():
                     handles += self._unique_objects(lambda x: x.get_hatch(), plots[idxs])
+                case PathCollection():
+                    handles += self._unique_objects(
+                        lambda x: x.get_hatch(),
+                        plots[idxs],
+                    ) or plots[idxs].tolist() if markers else []
                 case BarContainer():
                     handles += self._unique_objects(
                         lambda x: x.get_children()[0].get_hatch(),
@@ -698,6 +709,7 @@ class BasePlot:
     def create_legend(
             self,
             axis: bool = False,
+            markers: bool = False,
             rows: int = 1,
             cols: int = 0,
             loc: str | tuple[float, float] = 'outside upper center',
@@ -710,6 +722,9 @@ class BasePlot:
         ----------
         axis : bool, default = False
             Whether to plot the legend on the axes or the figure
+        markers : bool, default = False
+            If markers should be included in the legend, allows multiple labels with markers as
+            unique markers are not identifiable
         rows : int, default = 1
             Number of rows for the legend
         cols : int, default = 0
@@ -731,7 +746,7 @@ class BasePlot:
         if self.legend is not None:
             self.legend.remove()
 
-        label_handles = self._label_handles()
+        label_handles = self._label_handles(markers=markers)
 
         # Formatting of the legend
         if axis and self.legend_axis is None:
@@ -772,7 +787,14 @@ class BasePlot:
             rows = np.ceil((legend_range[1] - legend_range[0]) * (
                 np.ceil(len(self._labels) / cols) if cols else rows
             ) / fig_size)
-            self.create_legend(axis=axis, rows=rows, loc=loc, label_permute=label_permute, **kwargs)
+            self.create_legend(
+                axis=axis,
+                markers=markers,
+                rows=rows,
+                loc=loc,
+                label_permute=label_permute,
+                **kwargs,
+            )
 
         # Update handles to remove transparency if there isn't any hatching and set point size
         for handle in self.legend.legend_handles:
@@ -961,6 +983,9 @@ class BasePlot:
                 color=colour,
                 **kwargs,
             )[0])
+        else:
+            raise ValueError(f'Unknown style ({style}), must be a compatible Matplotlib marker '
+                             f'style ({utils.MARKERS}) or line style ({utils.LINE_STYLES})')
 
         if self._error_region and y_error is not None:
             self.plots[axis].append(axis.fill_between(
