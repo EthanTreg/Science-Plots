@@ -187,53 +187,93 @@ class BasePlot:
     @staticmethod
     def _data_length_normalise(
             x_data: list[ndarray] | ndarray,
+            *,
+            names: list[str] | None = None,
             lists: list[list[Any] | Any] | None = None,
-            data: list[list[ndarray] | ndarray | None] | None = None) -> tuple[
+            data: list[list[ndarray | None] | ndarray | None] | None = None) -> tuple[
         list[ndarray] | ndarray,
         list[list[Any]],
-        list[list[ndarray] | list[None] | ndarray]]:
+        list[list[ndarray | None] | ndarray]]:
         """
-        Normalises the length and format of plot data
+        Normalises the length and format of plot data.
+
+        If the number of sets of x-values, B, does not equal the number of sets of values for each
+        additional data, B', then an error will be raised.
+
+        If the number of x-values in each set of x-values does not equal the corresponding number
+        of values in each set of additional data, an error will be raised.
+
+        If each additional list has <B elements, then an error will be raised.
+
 
         Parameters
         ----------
         x_data : list[ndarray] | ndarray | ndarray
-            Primary data as list of B sets of x-values with ndarray shape of N, a (N) ndarray, or a
-            (B,N) ndarray, if x_data has a length of 1 or has shape (N), then B will be set to the
-            length of the first element in data if not None
+            Primary data either as list of B sets of x-values with shape of (N), or a (N) ndarray,
+            or a (B,N) ndarray, if B=1 then B will be set to the length of the first element from
+            data, if not None, N can be different for each set of x-values
+        names : list[str] | None, default = None
+            Names for each set of additional data, used for error messages only
         lists : list[list[Any] | Any] | None, default = None
             Additional data paired to the number B sets of data
-        data : list[list[ndarray] | ndarray | None] | None, default = None
-            Additional data, each a list of M sets of values with ndarray shape of N, a (N) ndarray,
-            or a (M,N) ndarray, if the data has a length of 1 or has shape (N), then M will be set
-            to the length of x_data, if not None
+        data : list[list[ndarray | None] | ndarray | None] | None, default = None
+            Additional data, each either a list of B' sets of values with ndarray shape of (N), or a
+            (N) ndarray, or a (B',N) ndarray, if B'=1, then B' will be set to B, N can be different
+            for each set of data, but must equal N from the respective set of x-values
 
         Returns
         -------
-        tuple[list[ndarray] | ndarray, list[list[Any]], list[list[ndarray | list[None] | ndarray]
-            List of B sets of x_data with ndarray shape N, or a (B,N) ndarray; lists, each with
-            length B; and additional data, each a list of B sets of data with ndarray shape N, or a
-            (B,N) ndarray, if not None
+        tuple[list[ndarray] | ndarray, list[list[Any]], list[list[ndarray | None] | ndarray]]
+            Either list of B sets of x-values with ndarray shape (N), or a (B,N) ndarray; lists,
+            each with length >=B; and additional data, each either a list of B sets of data with
+            ndarray shape (N), or a (B,N) ndarray, if not None
         """
+        i: int
+        j: int
+        name: str | None
+        datum: list[ndarray] | ndarray | None
+        list_: list[Any] | Any
+        x_datum: ndarray
+        sub_datum: ndarray | None
         x_data = [x_data] if np.ndim(x_data[0]) < 1 else x_data
         data = [datum if datum is None else
                 [datum] if np.ndim(datum[0]) < 1 else datum for datum in data] \
             if data is not None else None
 
+        if names and len(names) != len(data):
+            raise ValueError(f'Number of names for the additional data ({len(names)}) does not '
+                             f'match number of additional data sets ({len(data)})')
+
         if data is not None and len(x_data) == 1:
             x_data = [x_data[0]] * len(data[0])
 
-        for i, datum in enumerate(data) if data is not None else []:
+        for i, (name, datum) in enumerate(zip(names or [None] * len(data), data)) \
+                if data is not None else []:
             if datum is None:
                 data[i] = [None] * len(x_data)
             else:
                 datum = [datum] if np.ndim(datum[0]) < 1 else datum
                 data[i] = [datum[0]] * len(x_data) if len(datum) == 1 else datum
 
+            if len(data[i]) != len(x_data):
+                raise ValueError(
+                    f'Number of data sets for '
+                    f'{name if name else f"the additional data with index {i}"} ({len(data[i])}) '
+                    f'does not match number of x-data sets ({len(x_data)})',
+                )
+
+            for j, (x_datum, sub_datum) in enumerate(zip(x_data, data[i])):
+                if sub_datum is None:
+                    continue
+
+                if sub_datum.shape[-1] != x_datum.shape[-1]:
+                    raise ValueError(f'Number of values ({sub_datum.shape[-1]}) in set {j} from '
+                                     f'{name if name else f"additional data with index {i}"} does '
+                                     f'not match the number of x-values ({x_datum.shape[-1]})')
+
         for i, list_ in enumerate(lists) if lists is not None else []:
             if not isinstance(list_, list):
                 lists[i] = [list_] * len(x_data)
-
         return x_data, lists, data
 
     @staticmethod
@@ -298,7 +338,7 @@ class BasePlot:
         self._update_plots_dict(axes)
         return axes
 
-    def _patch_ranges(self, patch: Artist) -> tuple[ndarray, ndarray] | None:
+    def _patch_ranges(self, patch: Artist) -> ndarray | None:
         """
         Calculates the data range for the given patch
 
@@ -309,8 +349,9 @@ class BasePlot:
 
         Returns
         -------
-        tuple[(2) ndarray, (2) ndarray] | None
-            Minimum and maximum for x and y axes if the patch is known and has data
+        ndarray | None
+            x & y values for the patch with shape (N,2) and type float, where N is the number of
+            points in the patch or None if the patch type is unknown
         """
         idx: int
         data: list[tuple[ndarray, ndarray]] | list[ndarray] | ndarray
@@ -320,7 +361,7 @@ class BasePlot:
         match patch:
             case Line2D():
                 assert isinstance(patch, Line2D)
-                data = np.stack((
+                return np.stack((
                     np.arange(len(x_data))
                     if (x_data := patch.get_xdata()).dtype.type in {np.str_, np.object_} else
                     x_data,
@@ -330,16 +371,16 @@ class BasePlot:
                 ), axis=-1)
             case Polygon():
                 assert isinstance(patch, Polygon)
-                data = patch.get_xy()
+                return patch.get_xy()
             case PathCollection():
                 assert isinstance(patch, PathCollection)
-                data = patch.get_offsets().data
+                return np.array(patch.get_offsets().data)
             case LineCollection():
                 assert isinstance(patch, LineCollection)
-                data = np.concat([datum for datum in patch.get_segments() if np.ndim(datum) > 1])
+                return np.concat([datum for datum in patch.get_segments() if np.ndim(datum) > 1])
             case Collection() | QuadContourSet():
                 assert isinstance(patch, (Collection, QuadContourSet))
-                data = patch.get_paths()[0].vertices
+                return np.array(patch.get_paths()[0].vertices)
             case BarContainer():
                 assert isinstance(patch, BarContainer)
                 idx = patch.orientation == 'vertical'
@@ -350,26 +391,20 @@ class BasePlot:
                     rect.get_xy()[int(~idx)],
                     rect.get_height() if idx else rect.get_width(),
                 ) for rect in patch])
-                data = np.concat((data, np.stack((
+                return np.concat((data, np.stack((
                     data[:, 0] + widths,
                     np.zeros_like(widths),
-                ), axis=-1)))
-                data = data[:, ::(1 if idx else -1)]
+                ), axis=-1)))[:, ::(1 if idx else -1)]
             case Container():
                 data = [range_ for child in patch.get_children()
                         if (range_ := self._patch_ranges(child)) is not None]
-
-                if not data:
-                    return None
-
-                data = np.concat(data)
+                return np.concat(data) if data else None
             case Text():
                 return None
             case _:
                 self._logger.warning(f'Unknown plot type ({patch.__class__}), skipping calculation '
                                      f'of axis padding for this plot type')
                 return None
-        return np.min(data, axis=0), np.max(data, axis=0)
 
     def _process_kwargs(self, kwargs: dict[str, Any]) -> None:
         """
@@ -381,10 +416,9 @@ class BasePlot:
             Keyword arguments to process
         """
         key: str
-        value: Any
         class_kwargs: set[str] = {
             'error_region',
-            'scatter_num,' 
+            'scatter_num',
             'pad',
             'major',
             'minor',
@@ -398,10 +432,9 @@ class BasePlot:
             'minor_tick_factor',
         }
 
-        for key, value in list(kwargs.items()):
+        for key in list(kwargs):
             if key in class_kwargs and hasattr(self, f'_{key}'):
-                setattr(self, f'_{key}', value)
-                del kwargs[key]
+                setattr(self, f'_{key}', kwargs.pop(key))
 
     def _axis_init(self, axis: Axes) -> None:
         """
@@ -456,33 +489,49 @@ class BasePlot:
         Plots the data
         """
 
-    def _axis_data_ranges(self, axis: Axes, pad: float = 0) -> ndarray | None:
+    def _axis_data_ranges(self, axis: Axes, pad: float | ndarray = 0) -> ndarray | None:
         """
-        Gets the range of all data on the given axis
+        Gets the range of all data on the given axis.
+
+        Parameters
+        ----------
+        axis : Axes
+            Axis to get the data range for
+        pad : float | ndarray, default = 0
+            Padding factor to add to the axis ranges, either a float for both axes or an ndarray of
+            shape (2) for each axis or shape (2,2) for min and max (rows) of each axis (cols)
 
         Returns
         -------
-        (N, 2, 2) ndarray | None
-            N sets of data minimum and maximum values for each axis or None if there is no data
+        ndarray | None
+            Axis ranges with shape (2,2) and type float, where the rows are the min and max values
+            and columns are the axes
         """
-        range_: tuple[ndarray, ndarray] | None
-        ranges: list[tuple[ndarray, ndarray]] | ndarray = []
+        lims: ndarray
+        data: ndarray = np.empty((0, 2), dtype=float)
+        log_axes: ndarray = np.array([axis.get_xscale() == 'log', axis.get_yscale() == 'log'])
+        datum: ndarray | None
         plot: Artist
 
-        for plot in self.plots[axis]:
-            if range_ := self._patch_ranges(plot):
-                ranges.append(range_)
+        pad = pad * np.ones(2) if isinstance(pad, float) else \
+            pad * np.ones((2, 2)) if np.ndim(pad) == 1 else pad
+        pad = pad * np.array([[-1], [1]])
 
-        if len(ranges) > 0:
-            ranges = np.array([np.min(ranges, axis=(0, 1)), np.max(ranges, axis=(0, 1))])
-            ranges += np.stack((
-                ranges[:, 0] if axis.get_xscale() == 'log' else
-                [np.max(np.abs(ranges), axis=0)[0]] * 2,
-                ranges[:, 1] if axis.get_yscale() == 'log' else
-                [np.max(np.abs(ranges), axis=0)[1]] * 2,
-            ), axis=1) * np.array([[-pad], [pad]])
-            return ranges
-        return None
+        for plot in self.plots[axis]:
+            if (datum := self._patch_ranges(plot)) is not None:
+                data = np.concat((data, datum), axis=0)
+
+        if not data.size:
+            return None
+
+        lims = np.array([
+            np.min(data, where=~((data < 0) & log_axes), initial=np.inf, axis=0),
+            np.max(data, axis=0),
+        ])
+        lims[:, log_axes] = np.log10(lims[:, log_axes])
+        lims += (lims[1] - lims[0]) * pad
+        lims[:, log_axes] = 10 ** lims[:, log_axes]
+        return lims
 
     def _label_handles(self, markers: bool = False) -> dict[str, list[Artist]]:
         """
@@ -555,7 +604,9 @@ class BasePlot:
             label_handles[label] = np.array(handles)[np.isin(labels, label)].tolist()
 
         # If any label doesn't have a handle, get the first artist type depending on priority
-        for label, handles in label_handles.items():
+        for label in list(label_handles):
+            handles = label_handles[label]
+
             for plot_type in self._handle_priority:
                 if len(handles) != 0:
                     break
@@ -565,9 +616,14 @@ class BasePlot:
                 ])
                 handles += plots[idxs].tolist()
 
+            # If it still doesn't have a handle, get any artist with the label
             if len(handles) == 0:
                 handles += plots[[plot.get_label() == label for plot in plots]].tolist()[:1]
 
+            # If no handle is found, delete the label
+            if len(handles) == 0:
+                del label_handles[label]
+                self._logger.warning(f'No handle found for label {label}, removing from legend')
         return label_handles
 
     def savefig(self, path: str, name: str = '', **kwargs: Any) -> None:
@@ -765,10 +821,14 @@ class BasePlot:
         else:
             artist = self.fig
 
+        if not label_handles:
+            self._logger.warning('No handles found for legend, skipping legend creation')
+            return
+
         # Create legend
         self.legend = artist.legend(
-            np.array(list(label_handles.values()))[label_permute],
-            np.array(list(label_handles.keys()))[label_permute],
+            np.array(list(label_handles.values()), dtype=object)[label_permute],
+            np.array(list(label_handles.keys()), dtype=object)[label_permute],
             fancybox=False,
             ncol=cols or np.ceil(len(self._labels) / rows),
             fontsize=self._major,
@@ -807,14 +867,15 @@ class BasePlot:
             if isinstance(handle, Line2D):
                 handle.set_linewidth(4)
 
-    def set_axes_pad(self, pad: float = 0) -> None:
+    def set_axes_pad(self, pad: float | ndarray = 0) -> None:
         """
         Sets the padding on all plot axes
 
         Parameters
         ----------
-        pad : float, default = 0
-            Fractional padding to the plot data
+        pad : float | ndarray, default = 0
+            Padding factor to add to the axis ranges, either a float for both axes or an ndarray of
+            shape (2) for each axis or shape (2,2) for min and max (rows) of each axis (cols)
         """
         ranges: ndarray | None
         axis: Axes

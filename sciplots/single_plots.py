@@ -97,6 +97,7 @@ class BaseSinglePlot(BasePlot):
          (self._styles, self._labels),
          (self._y_data, self._x_error, self._y_error)) = self._data_length_normalise(
             x_data,
+            names=['y_data', 'x_error', 'y_error'],
             lists=[
                 styles.tolist() if isinstance(styles, ndarray) else styles,
                 labels.tolist() if isinstance(labels, ndarray) else labels,
@@ -240,6 +241,7 @@ class BaseSinglePlot(BasePlot):
 
         x_data, (labels,), (y_data, x_error, y_error) = self._data_length_normalise(
             x_data,
+            names=['y_data', 'x_error', 'y_error'],
             lists=[labels],
             data=[y_data, x_error, y_error],
         )
@@ -352,7 +354,11 @@ class PlotComparison(BaseSinglePlot):
 
     def _post_init(self) -> None:
         super()._post_init()
-        *_, (self._target,) = self._data_length_normalise(self._data, data=[self._target])
+        *_, (self._target,) = self._data_length_normalise(
+            self._data,
+            names=['target'],
+            data=[self._target],
+        )
 
     def _plot_data(self) -> None:
         assert isinstance(self.axes, Axes)
