@@ -188,6 +188,7 @@ class BasePlot:
     def _data_length_normalise(
             x_data: list[ndarray] | ndarray,
             *,
+            dim: int = -1,
             names: list[str] | None = None,
             lists: list[list[Any] | Any] | None = None,
             data: list[list[ndarray | None] | ndarray | None] | None = None) -> tuple[
@@ -209,24 +210,29 @@ class BasePlot:
         Parameters
         ----------
         x_data : list[ndarray] | ndarray | ndarray
-            Primary data either as list of B sets of x-values with shape of (N), or a (N) ndarray,
-            or a (B,N) ndarray, if B=1 then B will be set to the length of the first element from
-            data, if not None, N can be different for each set of x-values
+            Primary data either as list of B sets of x-values with shape of (M#,N,L#), or a
+            (M#,N,L#) ndarray, or a (B,M#,N,L#) ndarray, if B=1 then B will be set to the length of
+            the first element from data, if not None, M# & L# are arbitrary shapes, and N
+            corresponds to the dimension of dim and can be different for each set of x-values
+        dim : int, default = -1
+            Dimension to check the length of for each set of x-values and additional data
         names : list[str] | None, default = None
             Names for each set of additional data, used for error messages only
         lists : list[list[Any] | Any] | None, default = None
             Additional data paired to the number B sets of data
         data : list[list[ndarray | None] | ndarray | None] | None, default = None
-            Additional data, each either a list of B' sets of values with ndarray shape of (N), or a
-            (N) ndarray, or a (B',N) ndarray, if B'=1, then B' will be set to B, N can be different
-            for each set of data, but must equal N from the respective set of x-values
+            Additional data, each either a list of B' sets of values with ndarray shape of
+            (M#,N,L#), or a (M'#,N,L'#) ndarray, or a (B',M'#,N,L'#) ndarray, if B'=1, then B' will
+            be set to B, N can be different for each set of data, but must equal N from the
+            respective set of x-values, the shapes M'# and L'# can be different from the
+            corresponding x-values
 
         Returns
         -------
         tuple[list[ndarray] | ndarray, list[list[Any]], list[list[ndarray | None] | ndarray]]
-            Either list of B sets of x-values with ndarray shape (N), or a (B,N) ndarray; lists,
-            each with length >=B; and additional data, each either a list of B sets of data with
-            ndarray shape (N), or a (B,N) ndarray, if not None
+            Either list of B sets of x-values with ndarray shape (M#,N,L#), or a (B,M#,N,L#)
+            ndarray; lists, each with length >=B; and additional data, each either a list of B sets
+            of data with ndarray shape (M'#,N,L'#), or a (B,M'#,N,L'#) ndarray, if not None
         """
         i: int
         j: int
@@ -266,10 +272,12 @@ class BasePlot:
                 if sub_datum is None:
                     continue
 
-                if sub_datum.shape[-1] != x_datum.shape[-1]:
-                    raise ValueError(f'Number of values ({sub_datum.shape[-1]}) in set {j} from '
-                                     f'{name if name else f"additional data with index {i}"} does '
-                                     f'not match the number of x-values ({x_datum.shape[-1]})')
+                if sub_datum.shape[dim] != x_datum.shape[dim]:
+                    raise ValueError(
+                        f'Number of values ({sub_datum.shape[dim]}) in set {j} from '
+                        f'{name if name else f"additional data with index {i}"} along dimension '
+                        f'{dim} does not match the number of x-values ({x_datum.shape[dim]})',
+                    )
 
         for i, list_ in enumerate(lists) if lists is not None else []:
             if not isinstance(list_, list):

@@ -72,6 +72,7 @@ class BaseParamPairs(BasePlot):
         self._y_data, self._y_ranges = self._preprocessing(x_data if y_data is None else y_data)
         self._data, _, (self._y_data,) = self._data_length_normalise(
             self._data,
+            dim=-2,
             names=['y_data'],
             data=[self._y_data],
         )
